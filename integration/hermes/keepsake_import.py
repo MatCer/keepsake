@@ -111,11 +111,15 @@ def import_captures(bookmarks, fetch_asset, cache_dir: Path, prov_dir: Path, now
         # ponytail: ties use the last attachment; no extra metadata request.
         a, match = min(reversed(candidates), key=lambda pair:
                        LANGS.index(pair[1][2]) if pair[1][2] in LANGS else len(LANGS))
+        path, prov_path = cache_dir / f'{vid}.json', prov_dir / f'{vid}.json'
         try:
+            old = load(path, None)
+            if old is not None and old.get('status') != 'unavailable':
+                prov = load(prov_path, None)
+                if prov is None or prov.get('fileName') == a['fileName']:
+                    continue  # API-fetched/hand-made entry we never replace, or this exact attachment is imported
             c = validate(fetch_asset(a['id']), vid, match[3])
             t = c['transcript']
-            path, prov_path = cache_dir / f'{vid}.json', prov_dir / f'{vid}.json'
-            old = load(path, None)
             if old is not None and old.get('status') != 'unavailable':
                 prov = load(prov_path, {})
                 if (old.get('status') != 'ok' or not isinstance(old.get('text'), str)

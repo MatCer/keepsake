@@ -132,6 +132,17 @@ class ImportTests(unittest.TestCase):
         self.assertEqual(self.run_import(), [])
         self.assertEqual(before, [(p.read_bytes(), p.stat().st_mtime_ns) for p in (self.path, self.provpath)])
 
+    def test_no_download_when_nothing_could_change(self):
+        # runs every 6 minutes: an imported attachment or an API-fetched entry must not be re-downloaded
+        c = capture()
+        self.run_import(c)
+        calls = []
+        count = lambda asset_id: calls.append(asset_id) or html(c)
+        imp.import_captures([bookmark(c)], count, self.cache, self.prov, NOW)
+        self.provpath.unlink()
+        imp.import_captures([bookmark(c)], count, self.cache, self.prov, NOW)
+        self.assertEqual(calls, [])
+
     def test_ownership(self):
         for mode in ("api", "edited", "own", "unavailable"):
             with self.subTest(mode=mode):
