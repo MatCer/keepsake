@@ -16,6 +16,8 @@ export interface Transcript {
   /** true for ASR tracks, null when unknown. */
   generated: boolean | null;
   segments: TranscriptSegment[];
+  /** Chapter headings shown in the panel; `start` is the first segment under it. */
+  chapters: { title: string; start: number }[];
   /** Segments joined with single spaces: the exact shape yt_transcript.py stores. */
   text: string;
   /** sha256 hex of `text`. Idempotency key together with video id and language. */
@@ -78,6 +80,31 @@ export interface PlayerSnapshot {
   description: string | null;
   captionTracks: { languageCode: string; name: string; generated: boolean }[];
 }
+
+export interface Settings {
+  /** Karakeep base URL, e.g. https://karakeep.example.com (no trailing slash). */
+  address: string;
+  /** Stored in chrome.storage.local only. Never synced or exported. */
+  apiKey: string;
+  /** Save the tab to Karakeep as soon as the popup opens. */
+  autoSave: boolean;
+  theme: 'system' | 'light' | 'dark';
+  /** Obsidian vault name for obsidian://new; empty disables the Obsidian button. */
+  obsidianVault: string;
+  obsidianFolder: string;
+  /** Tag added to the bookmark when a transcript is attached; empty = none. */
+  transcriptTag: string;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  address: '',
+  apiKey: '',
+  autoSave: true,
+  theme: 'system',
+  obsidianVault: '',
+  obsidianFolder: 'Clippings',
+  transcriptTag: '',
+};
 
 export const LIMITS = {
   maxSegments: 20_000,
