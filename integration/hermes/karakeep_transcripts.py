@@ -237,3 +237,28 @@ def to_asset_html(record):
 def upload(bookmark, record):
     asset_id = upload_asset(file_name(record), to_asset_html(record))
     attach(bookmark['id'], asset_id)
+
+
+def selftest():
+    text, vid = 'hello </script> world', 'AbCdEfGhIjK'
+    segments = [{'start': 0, 'text': 'hello </script>'}, {'start': 1.5, 'text': 'world'}]
+    record = {'schema': 'keepsake.capture/v1', 'provenance': 'youtube-api', 'kind': 'youtube-transcript',
+              'capturedAt': '2026-10-01T00:00:00Z', 'url': f'https://www.youtube.com/watch?v={vid}', 'title': 't',
+              'video': {'id': vid, 'channel': None, 'publishedAt': None, 'durationSeconds': None, 'description': None},
+              'transcript': {'language': 'en', 'languageLabel': None, 'generated': True, 'segments': segments,
+                             'chapters': [], 'text': text, 'sha256': digest(text)}}
+    b = {'id': 'b', 'content': {'type': 'link', 'url': record['url']}, 'tags': [],
+         'assets': [{'id': 'a', 'assetType': 'userUploaded', 'fileName': file_name(record)}]}
+    assert status(b) == 'ok'
+    assert read(b, fetch=lambda _: to_asset_html(record).encode())['text'] == text
+    assert status({**b, 'assets': [], 'tags': [{'name': UNAVAILABLE_TAG}]}) == 'unavailable'
+    assert status({**b, 'assets': []}) == 'pending'
+    print('karakeep_transcripts selftest: ok')
+
+
+if __name__ == '__main__':
+    import sys
+    if sys.argv[1:] == ['--selftest']:
+        selftest()
+    else:
+        sys.exit('usage: karakeep_transcripts.py --selftest')

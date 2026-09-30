@@ -48,9 +48,10 @@ patch -p1 < /staged/hermes/yt_transcript.patch
 patch -p1 < /staged/hermes/karakeep_gate.patch
 python3 yt_transcript.py --selftest
 python3 karakeep_gate.py --selftest
+python3 karakeep_transcripts.py --selftest
 ```
 
-Both selftests are offline; run them inside the container before resuming jobs.
+All three selftests are offline; run them inside the container before resuming jobs.
 The patches target the byte-identical deployed scripts in `upstream/`.
 If either dry run fails, stop and compare the deployed version; do not force it.
 
