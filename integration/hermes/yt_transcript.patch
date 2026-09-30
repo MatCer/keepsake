@@ -1,0 +1,94 @@
+--- a/yt_transcript.py
++++ b/yt_transcript.py
+@@ -7,6 +7,8 @@
+ runs `prefetch` every 6 minutes and fetches at most ONE transcript per tick for YouTube
+ bookmarks in the hourly queue, capped at MAX_PER_HOUR. On a block it stops for BLOCK_HOURS.
+ Agents read the cache with `get`, which never touches the network.
++Browser captures import first, even while API requests are blocked. A grace period
++(default 30 minutes) leaves time to clip; CACHE/_config.json can disable api_fallback.
+ 
+   yt_transcript.py prefetch        # cron: fetch <=1 transcript; stdout (block notice) goes to Discord
+   yt_transcript.py get <url|id>    # exit 0 = transcript on stdout, 2 = pending, 3 = unavailable
+@@ -17,6 +19,7 @@
+ import sys
+ import time
+ from pathlib import Path
++from datetime import datetime, timezone
+ 
+ PROFILE_HOME = Path(__file__).resolve().parent.parent
+ CACHE = PROFILE_HOME / 'cache/yt_transcripts'
+@@ -50,6 +53,31 @@
+     return load(CACHE / f'{vid}.json', {'status': 'pending'})['status']
+ 
+ 
++def config():
++    out = {'api_fallback': True, 'grace_minutes': 30}
++    try:
++        d = load(CACHE / '_config.json', {})
++    except (OSError, ValueError):
++        return out
++    if isinstance(d, dict):
++        if type(d.get('api_fallback')) is bool:
++            out['api_fallback'] = d['api_fallback']
++        n = d.get('grace_minutes')
++        if type(n) in (int, float) and 0 <= n <= sys.float_info.max / 60:
++            out['grace_minutes'] = n
++    return out
++
++
++def in_grace(bookmark, now, minutes):
++    try:
++        created = datetime.fromisoformat(bookmark['createdAt'])
++        if created.tzinfo is None:
++            return False
++        return minutes > 0 and now - created.timestamp() < minutes * 60
++    except (KeyError, TypeError, ValueError, OverflowError):
++        return False
++
++
+ def may_fetch(state, now):
+     """None if a fetch is allowed now, else the reason for waiting."""
+     if now < state.get('blocked_until', 0):
+@@ -71,16 +99,25 @@
+ 
+ 
+ def prefetch():
+-    from youtube_transcript_api._errors import CouldNotRetrieveTranscript, RequestBlocked, YouTubeRequestFailed
+     from karakeep_gate import fetch_bookmarks, in_hourly
+     CACHE.mkdir(parents=True, exist_ok=True)
+     state, now = load(STATE, {}), time.time()
++    bookmarks = fetch_bookmarks()
++    try:
++        from keepsake_import import import_captures, karakeep_asset
++        import_captures(bookmarks, karakeep_asset, CACHE, CACHE.parent / 'yt_transcripts_provenance', now)
++    except Exception as e:  # browser import failure must not disable the existing fallback
++        print(f'keepsake_import: failed: {type(e).__name__}', file=sys.stderr)
++    cfg = config()
++    if not cfg['api_fallback']:
++        return
+     if may_fetch(state, now):
+         return
+-    todo = [v for b in fetch_bookmarks() if in_hourly(b)
++    todo = [v for b in bookmarks if in_hourly(b) and not in_grace(b, now, cfg['grace_minutes'])
+             for v in [video_id((b.get('content') or {}).get('url') or '')] if v and status(v) == 'pending']
+     if not todo:
+         return
++    from youtube_transcript_api._errors import CouldNotRetrieveTranscript, RequestBlocked, YouTubeRequestFailed
+     vid = todo[0]
+     # record the attempt before the request, so failures count against the cap too
+     state['fetches'] = [t for t in state.get('fetches', []) if now - t < 3600] + [now]
+@@ -114,6 +151,14 @@
+ 
+ 
+ def selftest():
++    from tempfile import TemporaryDirectory
++    from unittest.mock import patch
++    with TemporaryDirectory() as tmp, patch.object(sys.modules[__name__], 'CACHE', Path(tmp)):
++        assert config() == {'api_fallback': True, 'grace_minutes': 30}
++    now = datetime(2026, 9, 30, 20, tzinfo=timezone.utc).timestamp()
++    assert in_grace({'createdAt': '2026-09-30T19:45:00Z'}, now, 30)
++    assert not in_grace({'createdAt': '2026-09-30T19:30:00Z'}, now, 30)
++    assert not in_grace({'createdAt': 'invalid'}, now, 30)
+     assert video_id('https://www.youtube.com/watch?v=dQw4w9WgXcQ&t=1') == 'dQw4w9WgXcQ'
+     assert video_id('https://www.youtube.com/watch?feature=x&v=dQw4w9WgXcQ') == 'dQw4w9WgXcQ'
+     assert video_id('https://youtu.be/dQw4w9WgXcQ?si=abc') == 'dQw4w9WgXcQ'
