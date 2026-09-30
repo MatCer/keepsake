@@ -1,79 +1,94 @@
 # Keepsake → brain_janitor
 
-**Nothing here has been deployed. Deployment requires operator approval.**
+**Nothing is deployed. Deployment requires operator approval.**
 
-The prefetch tick imports browser transcript attachments from Karakeep before any
-YouTube fallback. Imports keep the existing cache shape; ownership and capture
-metadata live in `cache/yt_transcripts_provenance/`. API-fetched and hand-edited
-transcripts are preserved. Re-importing identical text does nothing.
+Karakeep is the only transcript store. Browser and YouTube API transcripts are
+`userUploaded` HTML attachments on the video's link bookmark, named
+`keepsake-transcript-<videoId>-<lang|und>-<sha256 first 12 hex>.html`.
+The attachment contains readable timestamp links and the embedded capture record.
+There is no transcript importer, local transcript cache, or provenance directory.
+Existing `cache/yt_transcripts/<id>.json` files are ignored and can be deleted.
+Only `_state.json` (pacing/block state) and optional `_config.json` stay local.
 
-All link bookmarks are considered for imports. YouTube fallback remains limited
-to one pending hourly-queue video per tick, with the existing cap/block handling.
-New bookmarks get a 30-minute browser-capture grace period. Invalid/missing dates
-do not delay fallback. Language preference is en, sk, cs, then the last attachment;
-ties also use the last attachment. A rejected chosen asset skips that bookmark.
+The hourly gate reads attachment/tag status from each bookmark without downloading
+assets. Pending videos wait; attachments take precedence over the
+`transcript-unavailable` tag. Language preference is en, sk, cs, then the last
+attachment; ties also use the last attachment. `get` downloads and validates the
+chosen attachment from Karakeep; it never calls YouTube. Invalid attachments return
+exit 3 and need repair in Karakeep.
 
-## Deploy (operator-approved only)
+Prefetch uploads at most one pending hourly video's transcript per tick. Existing
+hourly caps and 24-hour blocks remain; each attempt counts before fetching.
+No captions adds `transcript-unavailable`. Upload/tag failures log only the error
+type and leave the bookmark pending for retry. New bookmarks get a 30-minute
+browser-capture grace period; missing/invalid dates do not delay fallback.
 
-After approval, stage these files in the container. From the brain_janitor profile
-directory (replace `/staged/hermes` below with their actual staging path):
+## Deploy (operator approval required)
+
+Use Python 3.12. The new helper uses only the standard library; the existing API
+fallback still uses the profile's installed `youtube_transcript_api`.
+The helper reads profile `config.yaml` using the gate's address/key regexes,
+uses Bearer auth with a 30-second timeout, refuses redirects, and caps downloads
+at 16 MB. The cron wrapper is unchanged.
+
+After approval, stage this directory inside the container. Pause the prefetch and
+gate jobs during installation. From the brain_janitor profile root, replacing
+`/staged/hermes` with the actual staging path:
 
 ```sh
-cp scripts/yt_transcript.py "scripts/yt_transcript.py.bak-$(date +%Y%m%d-%H%M%S)"
-cp /staged/hermes/keepsake_import.py scripts/
+# Do not overwrite an earlier rollback backup.
+cp -n scripts/yt_transcript.py scripts/yt_transcript.py.bak
+cp -n scripts/karakeep_gate.py scripts/karakeep_gate.py.bak
 cd scripts
 patch --dry-run -p1 < /staged/hermes/yt_transcript.patch
+patch --dry-run -p1 < /staged/hermes/karakeep_gate.patch
+# Continue only if BOTH dry runs succeed.
+cp /staged/hermes/karakeep_transcripts.py .
 patch -p1 < /staged/hermes/yt_transcript.patch
-# Alternatively, copy /staged/hermes/yt_transcript.py over yt_transcript.py.
+patch -p1 < /staged/hermes/karakeep_gate.patch
 python3 yt_transcript.py --selftest
-python3 keepsake_import.py --selftest
+python3 karakeep_gate.py --selftest
 ```
 
-Use Python 3.12. The importer uses only the standard library; existing YouTube
-fallback still needs the profile's existing `youtube_transcript_api` installation.
-No cron or gate changes are needed. The sibling importer reads `config.yaml` in
-the profile root using the same address/key rules as the gate, with a 30s timeout.
-Tests/selftests are offline and never print capture text or credentials.
+Both selftests are offline; run them inside the container before resuming jobs.
+The patches target the byte-identical deployed scripts in `upstream/`.
+If either dry run fails, stop and compare the deployed version; do not force it.
 
-Optional `cache/yt_transcripts/_config.json` (relative to the profile root):
+## Config
+
+Optional `cache/yt_transcripts/_config.json`, relative to the profile root:
 
 ```json
 {"api_fallback": false, "grace_minutes": 30}
 ```
 
-Defaults: fallback true, grace 30 minutes. Grace accepts a finite nonnegative
-number (0 disables it); malformed settings and wrong types use defaults. Unknown
-keys are ignored. Disabling fallback still allows browser imports, including
-during an existing API block.
+Set `api_fallback: false` to never call YouTube. Browser attachments remain readable
+through Karakeep. Defaults are true and 30 minutes. Grace accepts a finite
+nonnegative number (0 disables it); malformed settings and wrong types use
+defaults. Unknown keys are ignored. Preserve `_state.json` across deployment.
 
-Repository verification:
+Repository checks (Python 3.12; tests stub YouTube and use only 127.0.0.1 HTTP):
 
 ```sh
 python3 -m unittest discover -s integration/hermes/tests
+python3 integration/hermes/yt_transcript.py --selftest
+python3 integration/hermes/karakeep_gate.py --selftest
 ```
 
 ## ROLLBACK
 
-Pause the prefetch cron while rolling back. From the profile root, restore the
-chosen backup and remove the importer:
+Pause the prefetch and gate jobs. From the profile root:
 
 ```sh
-cp scripts/yt_transcript.py.bak-<date> scripts/yt_transcript.py
-rm scripts/keepsake_import.py
+cp scripts/yt_transcript.py.bak scripts/yt_transcript.py
+cp scripts/karakeep_gate.py.bak scripts/karakeep_gate.py
+rm scripts/karakeep_transcripts.py
+python3 scripts/yt_transcript.py --selftest
+python3 scripts/karakeep_gate.py --selftest
 ```
 
-Browser-imported cache entries are identified by matching files in
-`cache/yt_transcripts_provenance/`. They remain compatible with the original
-readers and may be kept. Preview them with:
-
-```sh
-find cache/yt_transcripts_provenance -maxdepth 1 -name '*.json' -print
-```
-
-If removal is wanted, review/back up those files and their matching
-`cache/yt_transcripts/<videoId>.json` files, then delete each reviewed pair. An entry whose
-`cacheSha256` no longer matches the cache record (sha256 of its JSON with sorted keys)
-was edited by hand after import; keep it if those edits matter. Do not delete `_state.json` or unrelated cache entries. Removing
-an imported cache file makes that video **pending** again; restored prefetch may
-fetch it through YouTube. The old script ignores `_config.json`; remove it if
-desired. Resume the cron after rollback.
+Uploaded attachments and the `transcript-unavailable` tag remain in Karakeep and
+are harmless. They can be removed in the Karakeep UI. Keep `_state.json`; restored
+upstream scripts resume local caching and ignore `_config.json`. If old transcript
+files were deleted, the restored prefetch will fetch them again under its pacing
+limits. Resume jobs after both restored selftests pass.
