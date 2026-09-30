@@ -14,7 +14,8 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
   If the transcript panel isn't open, it tells you to open it and retry.
 
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
-to the Karakeep bookmark, where the brain_janitor jobs can pick them up
+to the Karakeep bookmark. Karakeep is the single store for transcripts: the brain_janitor
+jobs read them from there and upload their own API fallback there too
 (see [integration/hermes](integration/hermes/INSTALL.md)).
 
 <p align="center">
@@ -97,9 +98,9 @@ YouTube tab and the popup. It asserts:
 
 - zero YouTube/caption requests while capturing;
 - the unopened-panel instruction appears and no transcript is created;
-- the exact segments, timestamps and chapters arrive in Karakeep and in the transcript
-  cache;
-- the prefetch job skips the captured video but still falls back for an uncaptured one;
+- the exact segments, timestamps and chapters arrive in Karakeep;
+- the prefetch job skips the captured video, fetches an uncaptured one through a stub and
+  uploads it to Karakeep, `get` reads from Karakeep, and no local transcript files exist;
 - a duplicate click leaves one bookmark, one attachment, and the original note and tags.
 
 The local Karakeep runs with its crawler disabled and a dead proxy, so bookmarking test
@@ -113,9 +114,8 @@ YouTube URLs never contacts YouTube.
   optional transcript tag). Delete them from the bookmark's Attachments. Bookmarks it
   created are ordinary link bookmarks.
 - **brain_janitor:** see the Rollback section of
-  [integration/hermes/INSTALL.md](integration/hermes/INSTALL.md). It restores the `.bak`
-  script and optionally removes imported cache entries (those listed in
-  `cache/yt_transcripts_provenance/`).
+  [integration/hermes/INSTALL.md](integration/hermes/INSTALL.md): restore the two `.bak`
+  scripts and delete `karakeep_transcripts.py`. Attachments stay in Karakeep and are harmless.
 
 ## License
 

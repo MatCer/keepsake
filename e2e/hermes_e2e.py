@@ -1,7 +1,7 @@
-"""Run the patched brain_janitor prefetch against the local Karakeep in a throwaway profile.
+"""Run the patched brain_janitor prefetch and get against the local Karakeep in a throwaway profile.
 
-youtube_transcript_api is replaced by a stub that records every video it is asked for and
-never touches the network, so the test can assert which videos the prefetch would fetch.
+youtube_transcript_api is replaced by a stub that records every video it is asked for, returns a
+fixed transcript and never touches the network. Transcripts live only in Karakeep.
 Usage: hermes_e2e.py <karakeep_addr> <api_key> <captured_video_id>; prints a JSON report.
 """
 import json
@@ -17,13 +17,20 @@ HERMES = REPO / 'integration/hermes'
 
 STUB = '''
 import os
+from types import SimpleNamespace as NS
+class NoTranscriptFound(Exception): pass
+class _Track:
+    language_code, is_generated = 'en', True
+    def fetch(self):
+        return [NS(start=0.0, text='Fetched by the fallback.'), NS(start=2.5, text='Second line.')]
+class _List:
+    def find_transcript(self, langs): return _Track()
+    def __iter__(self): return iter([_Track()])
 class YouTubeTranscriptApi:
     def list(self, vid):
         with open(os.environ['YT_CALLS'], 'a') as f:
             f.write(vid + '\\n')
-        from youtube_transcript_api._errors import CouldNotRetrieveTranscript
-        raise CouldNotRetrieveTranscript(vid)
-class NoTranscriptFound(Exception): pass
+        return _List()
 '''
 ERRORS = '''
 class CouldNotRetrieveTranscript(Exception): pass
@@ -38,9 +45,8 @@ def main(addr, key, vid):
         scripts = root / 'profile/scripts'
         scripts.mkdir(parents=True)
         (root / 'profile/config.yaml').write_text(f'KARAKEEP_API_ADDR: {addr}\nKARAKEEP_API_KEY: {key}\n')
-        for f in ('yt_transcript.py', 'keepsake_import.py'):
+        for f in ('yt_transcript.py', 'karakeep_transcripts.py', 'karakeep_gate.py'):
             shutil.copy(HERMES / f, scripts / f)
-        shutil.copy(HERMES / 'upstream/karakeep_gate.py', scripts / 'karakeep_gate.py')
         stubs = root / 'stubs/youtube_transcript_api'
         stubs.mkdir(parents=True)
         (stubs / '__init__.py').write_text(STUB)
@@ -52,16 +58,13 @@ def main(addr, key, vid):
             return subprocess.run([sys.executable, *args], cwd=scripts, env=env, capture_output=True, text=True)
 
         first = run('yt_transcript.py', 'prefetch')
-        cache = root / f'profile/cache/yt_transcripts/{vid}.json'
-        mtime = cache.stat().st_mtime_ns if cache.exists() else None
         second = run('yt_transcript.py', 'prefetch')
         got = run('yt_transcript.py', 'get', vid)
+        cache = root / 'profile/cache'
         print(json.dumps({
             'prefetch_rc': [first.returncode, second.returncode],
             'prefetch_stderr': (first.stderr + second.stderr)[-2000:],
-            'cache': json.loads(cache.read_text()) if cache.exists() else None,
-            'provenance': (root / f'profile/cache/yt_transcripts_provenance/{vid}.json').exists(),
-            'unchanged_on_second_run': mtime is not None and cache.stat().st_mtime_ns == mtime,
+            'local_files': sorted(str(p.relative_to(cache)) for p in cache.rglob('*') if p.is_file()) if cache.exists() else [],
             'youtube_calls': calls.read_text().split() if calls.exists() else [],
             'get_rc': got.returncode,
             'get_stdout': got.stdout,

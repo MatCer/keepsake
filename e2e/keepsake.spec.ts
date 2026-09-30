@@ -140,7 +140,7 @@ test('transcript panel not opened: instruction, no transcript, zero YouTube requ
   await yt.close();
 });
 
-test('end to end: attach to Karakeep, import into the cache, prefetch skips it; retries keep data intact', async () => {
+test('end to end: attach to Karakeep, prefetch skips it and uploads the API fallback there, get reads Karakeep; retries keep data intact', async () => {
   const url = 'https://www.youtube.com/watch?v=KsTestOpen1';
   const old = new Date(Date.now() - 3 * 3600_000).toISOString();
   // A bookmark that existed before clipping, with user data that must survive.
@@ -186,13 +186,19 @@ test('end to end: attach to Karakeep, import into the cache, prefetch skips it; 
     execFileSync('python3', ['e2e/hermes_e2e.py', KK, KEY, 'KsTestOpen1'], { encoding: 'utf8' }) as string,
   );
   expect(report.prefetch_rc).toEqual([0, 0]);
-  expect(report.cache).toEqual({ status: 'ok', language: 'en', generated: true, text: TEXT });
-  expect(report.provenance).toBe(true);
-  expect(report.unchanged_on_second_run).toBe(true);
-  expect(report.youtube_calls).not.toContain('KsTestOpen1');
+  // The browser-captured video is never fetched; the uncaptured one is fetched once and uploaded.
   expect(report.youtube_calls).toEqual(['KsTestNoCap']);
+  expect(report.local_files).toEqual(['yt_transcripts/_state.json']);
   expect(report.get_rc).toBe(0);
-  expect(report.get_stdout).toContain(TEXT);
+  expect(report.get_stdout).toBe(`[transcript language=en auto_generated=True]\n${TEXT}\n`);
+  const fetched = await api('GET', `/bookmarks/${other.id}`);
+  expect(fetched.assets).toHaveLength(1);
+  expect(fetched.assets[0].fileName).toMatch(/^keepsake-transcript-KsTestNoCap-en-[0-9a-f]{12}\.html$/);
+  const fallback = await (await fetch(`${KK}/api/v1/assets/${fetched.assets[0].id}`, { headers: { authorization: `Bearer ${KEY}` } })).text();
+  const fallbackRecord = JSON.parse(fallback.match(/id="keepsake-capture">([\s\S]*?)<\/script>/)?.[1] ?? '');
+  expect(fallbackRecord.provenance).toBe('youtube-api');
+  expect(fallbackRecord.transcript.segments).toEqual([{ start: 0, text: 'Fetched by the fallback.' }, { start: 2.5, text: 'Second line.' }]);
+  expect((await api('GET', `/bookmarks/${pre.id}`)).assets).toHaveLength(1);
   await yt.close();
 });
 
