@@ -67,3 +67,10 @@ test('probe is self-contained, selective and graceful', () => {
   Object.assign(element, { getPlayerResponse: () => { throw Error('bad'); } });
   expect(probePlayer()).toEqual(empty);
 });
+
+test('segments without any way to confirm the current video are not trusted', async () => {
+  const noFlexy = modern.replace(/<ytd-watch-flexy[^>]*>/, '<div>');
+  expect(await readTranscript(doc(noFlexy), url, null, now)).toEqual({ status: 'stale', videoId: id });
+  expect(await readTranscript(doc(noFlexy), url, { ...player, videoId: null }, now)).toEqual({ status: 'stale', videoId: id });
+  expect(await readTranscript(doc(noFlexy), url, player, now)).toMatchObject({ status: 'captured' });
+});

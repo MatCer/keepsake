@@ -90,7 +90,7 @@ export function CapturePanel({
       {capture ? (
         <>
           {capture.kind === 'youtube-transcript' && client && bookmark && (
-            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} />
+            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} address={settings.address} />
           )}
           {capture.kind === 'youtube-transcript' && !bookmark && (
             <p className="text-[12px] text-zinc-500">Save the bookmark to attach this transcript to it.</p>
@@ -133,18 +133,23 @@ export function CapturePanel({
   );
 }
 
-type AttachState = { phase: 'idle' | 'busy' } | { phase: 'done'; outcome: AttachOutcome } | { phase: 'failed'; message: string };
+type AttachState =
+  | { phase: 'idle' | 'busy' }
+  | { phase: 'done'; outcome: AttachOutcome }
+  | { phase: 'failed'; message: string; queued: boolean };
 
 function AttachToKarakeep({
   client,
   bookmark,
   capture,
   tag,
+  address,
 }: {
   client: KarakeepClient;
   bookmark: Bookmark;
   capture: YoutubeCapture;
   tag: string;
+  address: string;
 }) {
   const [state, setState] = useState<AttachState>({ phase: 'idle' });
   const attach = async (replaceAssetId?: string) => {
@@ -153,15 +158,16 @@ function AttachToKarakeep({
       setState({ phase: 'done', outcome: await attachTranscript(client, bookmark.id, capture, { replaceAssetId, tag }) });
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Upload failed';
-      await addToOutbox({
+      const queued = await addToOutbox({
         id: crypto.randomUUID(),
         createdAt: new Date().toISOString(),
+        address,
         bookmarkUrl: capture.url,
         capture,
         lastError: message,
         attempts: 1,
-      });
-      setState({ phase: 'failed', message });
+      }).catch(() => false);
+      setState({ phase: 'failed', message, queued });
     }
   };
 
@@ -181,6 +187,12 @@ function AttachToKarakeep({
           </div>
         </Banner>
       );
+    if (o.kind === 'mismatch')
+      return (
+        <Banner tone="warning" title="This transcript belongs to another video">
+          The tab switched videos after Keepsake opened. Reopen Keepsake on the video you want to attach.
+        </Banner>
+      );
     const titles = { attached: 'Transcript attached to the bookmark', replaced: 'Transcript replaced', already: 'This exact transcript is already attached' } as const;
     return <Banner tone={o.kind === 'already' ? 'info' : 'success'} title={titles[o.kind]} />;
   }
@@ -189,7 +201,10 @@ function AttachToKarakeep({
     <div className="space-y-2">
       {state.phase === 'failed' && (
         <Banner tone="error" title="Karakeep did not accept the transcript">
-          {state.message}. It is kept in the outbox, nothing was lost.
+          {state.message}.{' '}
+          {state.queued
+            ? 'It is kept in the outbox, nothing was lost.'
+            : 'The outbox is full, so download the .json above to keep this capture.'}
         </Banner>
       )}
       <Button variant="primary" busy={state.phase === 'busy'} onClick={() => attach()} className="w-full">

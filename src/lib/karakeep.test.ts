@@ -67,7 +67,7 @@ test('does not retry 401 or leak secrets and queries', async () => {
 });
 test('gives up after three attempts with retryable error', async () => {
   const { client, fetch } = setup([response({}, 503), response({}, 503), response({}, 503)]);
-  await expect(client.attachAsset('private-id', 'secret-asset')).rejects.toMatchObject({ retryable: true, status: 503, message: 'POST /bookmarks/{id}/assets failed: 503' }); expect(fetch).toHaveBeenCalledTimes(3);
+  await expect(client.setFlags('private-id', { archived: true })).rejects.toMatchObject({ retryable: true, status: 503, message: 'PATCH /bookmarks/{id} failed: 503' }); expect(fetch).toHaveBeenCalledTimes(3);
 });
 test.each([new TypeError('secret URL'), new DOMException('secret URL', 'AbortError'), new DOMException('secret URL', 'TimeoutError')])('retries network/abort errors safely', async error => {
   const fetch = vi.fn<typeof globalThis.fetch>().mockRejectedValueOnce(error).mockResolvedValue(response({ id: 'u' })); const sleep = vi.fn(async () => {});
@@ -85,13 +85,17 @@ test('exchange uses non-batched SuperJSON request and reads key envelope', async
   expect(fetch.mock.calls[0]?.[1]).toMatchObject({ method: 'POST', body: JSON.stringify({ json: { keyName: 'Keepsake extension', email: 'user@example.com', password: 'password' } }) });
   expect(new Headers(fetch.mock.calls[0]?.[1]?.headers).has('Authorization')).toBe(false);
 });
-test('retries multipart uploads and uses a new timeout signal per attempt', async () => {
-  const { client, fetch, sleep } = setup([response({}, 503), response({ assetId: 'a' })]);
-  expect(await client.uploadHtmlAsset('kite.html', 'kite')).toBe('a');
-  expect(fetch.mock.calls[0]?.[1]?.body).toBeInstanceOf(FormData);
-  expect(fetch.mock.calls[1]?.[1]?.body).toBeInstanceOf(FormData);
-  expect(fetch.mock.calls[0]?.[1]?.signal).not.toBe(fetch.mock.calls[1]?.[1]?.signal);
-  expect(sleep).toHaveBeenCalledWith(500);
+test('upload, attach and replace are sent once: a lost response must not create duplicates', async () => {
+  for (const call of [
+    (c: KarakeepClient) => c.uploadHtmlAsset('kite.html', 'kite'),
+    (c: KarakeepClient) => c.attachAsset('b', 'a'),
+    (c: KarakeepClient) => c.replaceAsset('b', 'a', 'n'),
+  ]) {
+    const { client, fetch, sleep } = setup([response({}, 503), response({ assetId: 'a' })]);
+    await expect(call(client)).rejects.toMatchObject({ status: 503 });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(sleep).not.toHaveBeenCalled();
+  }
 });
 test('validates wrappers, exchange errors and malformed JSON', async () => {
   for (const action of [

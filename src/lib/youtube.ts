@@ -16,6 +16,11 @@ export function videoIdFromUrl(value: string): string | null {
   }
   return id && /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
 }
+/** Any YouTube-owned page. Only capturable video pages are read there; the rest never reach Defuddle. */
+export function isYoutubeHost(value: string): boolean {
+  const host = parsedUrl(value)?.hostname ?? '';
+  return /(^|\.)(youtube\.com|youtu\.be|youtube-nocookie\.com)$/.test(host);
+}
 export function isCapturableVideoUrl(value: string): boolean {
   const url = parsedUrl(value);
   return !!url && hosts.has(url.hostname) && !url.pathname.startsWith('/embed/') && videoIdFromUrl(value) !== null;
@@ -61,6 +66,8 @@ export async function readTranscript(doc: Document, url: string, player: PlayerS
   }
   const last = segments[segments.length - 1];
   if (!last) return { status: player && player.captionTracks.length === 0 ? 'no-captions' : 'panel-not-loaded', videoId: id };
+  // Segments carry no video id; without the player or watch-flexy confirming the current video they could be stale.
+  if (!player?.videoId && watchId === undefined) return { status: 'stale', videoId: id };
   if (player?.lengthSeconds != null && last.start > player.lengthSeconds + 5) return { status: 'stale', videoId: id };
   const content = segments.map(segment => segment.text).join(' ');
   if (segments.length > LIMITS.maxSegments || content.length > LIMITS.maxTranscriptChars) return { status: 'too-large', bytes: new TextEncoder().encode(content).length };

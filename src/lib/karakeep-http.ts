@@ -5,6 +5,8 @@ export interface ClientOptions {
   fetch?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
   timeoutMs?: number;
+  /** Default 3. Non-idempotent writes use 1: the attach flow re-checks and repeats them safely. */
+  attempts?: number;
 }
 export function normalizeAddress(input: string): string {
   let url: URL;
@@ -25,7 +27,8 @@ export async function request(origin: string, path: string, template: string, me
   const headers = new Headers();
   if (apiKey !== null) headers.set('Authorization', `Bearer ${apiKey}`);
   if (typeof body === 'string') headers.set('Content-Type', 'application/json');
-  for (let attempt = 0; attempt < 3; attempt++) {
+  const attempts = opts.attempts ?? 3;
+  for (let attempt = 0; attempt < attempts; attempt++) {
     let failure: KarakeepError;
     try {
       const response = await fetcher(`${origin}${path}`, { method, headers, body, signal: AbortSignal.timeout(opts.timeoutMs ?? 15000), redirect: 'error' });
@@ -41,7 +44,7 @@ export async function request(origin: string, path: string, template: string, me
       const retryable = error instanceof TypeError || ((error instanceof Error || error instanceof DOMException) && ['AbortError', 'TimeoutError'].includes(error.name));
       failure = new KarakeepError(`${method} ${template} failed: network error`, null, retryable);
     }
-    if (!failure.retryable || attempt === 2) throw failure;
+    if (!failure.retryable || attempt === attempts - 1) throw failure;
     await sleep(attempt === 0 ? 500 : 1500);
   }
   throw new KarakeepError('Request failed', null, true);

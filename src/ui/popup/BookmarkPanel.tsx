@@ -37,11 +37,10 @@ export function BookmarkCard({
   return (
     <section className="space-y-3">
       <div className="flex items-start gap-2.5">
-        {bookmark.content.favicon ? (
-          <img src={bookmark.content.favicon} alt="" className="mt-0.5 size-4 shrink-0 rounded-sm" />
-        ) : (
-          <span className="mt-0.5 size-4 shrink-0 rounded-sm bg-zinc-200 dark:bg-zinc-800" />
-        )}
+        {/* No remote favicon: for a YouTube bookmark that would be a request to YouTube. */}
+        <span aria-hidden className="mt-0.5 grid size-4 shrink-0 place-items-center rounded-sm bg-accent-soft text-[10px] font-semibold text-accent uppercase">
+          {title.trim().charAt(0)}
+        </span>
         <div className="min-w-0 flex-1">
           <a
             href={`${address}/dashboard/preview/${bookmark.id}`}
@@ -231,6 +230,7 @@ function NoteEditor({ client, bookmark, onSaved }: { client: KarakeepClient; boo
         placeholder="Note…"
         rows={2}
         value={note}
+        readOnly={busy}
         onChange={(e) => setNote(e.target.value)}
         className={`${inputClass} h-auto resize-y py-1.5`}
       />

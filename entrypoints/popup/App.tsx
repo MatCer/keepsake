@@ -176,7 +176,7 @@ function Main({ tab, settings, client }: { tab: Tab; settings: Settings; client:
               onDeleted={() => setState({ phase: 'deleted' })}
             />
           )}
-          <Outbox client={client} />
+          <Outbox client={client} address={settings.address} />
         </>
       )}
 
@@ -209,12 +209,16 @@ function Main({ tab, settings, client }: { tab: Tab; settings: Settings; client:
   );
 }
 
-function Outbox({ client }: { client: KarakeepClient }) {
+function Outbox({ client, address }: { client: KarakeepClient; address: string }) {
   const [items, setItems] = useState<OutboxItem[]>([]);
   const [busy, setBusy] = useState(false);
   useEffect(() => {
-    listOutbox().then(setItems);
-  }, []);
+    // Only uploads meant for this server; refreshed when a new failure is queued.
+    const load = () => listOutbox().then((all) => setItems(all.filter((i) => i.address === address)));
+    load();
+    browser.storage.local.onChanged.addListener(load);
+    return () => browser.storage.local.onChanged.removeListener(load);
+  }, [address]);
   if (!items.length) return null;
 
   const retry = async () => {
@@ -224,12 +228,12 @@ function Outbox({ client }: { client: KarakeepClient }) {
         const id = (await findBookmark((u) => client.checkUrl(u), item.bookmarkUrl)) ?? (await client.createLink(item.bookmarkUrl)).bookmark.id;
         const outcome = await attachTranscript(client, id, item.capture, {});
         if (outcome.kind === 'conflict') await addToOutbox({ ...item, lastError: 'A different transcript is attached; attach again from the video to choose' });
+        else if (outcome.kind === 'mismatch') await addToOutbox({ ...item, lastError: 'The bookmark found is for another video' });
         else await removeFromOutbox(item.id);
       } catch (e) {
         await addToOutbox({ ...item, lastError: message(e) });
       }
     }
-    setItems(await listOutbox());
     setBusy(false);
   };
 
@@ -244,7 +248,6 @@ function Outbox({ client }: { client: KarakeepClient }) {
           variant="ghost"
           onClick={async () => {
             for (const i of items) await removeFromOutbox(i.id);
-            setItems([]);
           }}
         >
           Discard

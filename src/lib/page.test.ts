@@ -23,7 +23,9 @@ test('YouTube videos never use Defuddle or fetch; other pages use article captur
   const fetch = vi.fn(() => { throw Error('No requests allowed'); }); vi.stubGlobal('fetch', fetch);
   const doc = new DOMParser().parseFromString(article, 'text/html');
   expect(await captureDocument(doc, 'https://youtube.com/watch?v=dQw4w9WgXcQ', null, now)).toMatchObject({ status: 'panel-not-loaded' });
-  expect(await captureDocument(doc, 'https://youtube.com/', null, now)).toMatchObject({ status: 'captured', capture: { kind: 'page' } });
+  for (const u of ['https://youtube.com/', 'https://www.youtube.com/embed/dQw4w9WgXcQ', 'https://m.youtube.com/results?search_query=x', 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ'])
+    expect(await captureDocument(doc, u, null, now)).toMatchObject({ status: 'unsupported' });
+  expect(await captureDocument(doc, 'https://example.com/a', null, now)).toMatchObject({ status: 'captured', capture: { kind: 'page' } });
   expect(fetch).not.toHaveBeenCalled();
 });
 test('page Markdown size limit uses UTF-8 bytes', async () => {

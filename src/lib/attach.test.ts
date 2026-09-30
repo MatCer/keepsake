@@ -25,7 +25,7 @@ const capture = (text = 'hello world', language: string | null = 'en'): YoutubeC
 
 function fakeClient(assets: Bookmark['assets']) {
   const calls: string[] = [];
-  const bookmark = { id: 'bm1', assets } as Bookmark;
+  const bookmark = { id: 'bm1', assets, content: { url: 'https://www.youtube.com/watch?v=AbCdEfGhIjK&t=5s' } } as Bookmark;
   const client: AttachClient = {
     getBookmark: async () => bookmark,
     uploadHtmlAsset: async (name) => (calls.push(`upload ${name}`), 'new-asset'),
@@ -68,6 +68,13 @@ describe('attachTranscript', () => {
     expect(await attachTranscript(client, 'bm1', capture(), {})).toEqual({ kind: 'attached' });
     expect(calls[1]).toBe('attach bm1 new-asset');
   });
+});
+
+test('refuses to attach a transcript to another video\'s bookmark (tab navigated meanwhile)', async () => {
+  const { client, calls } = fakeClient([]);
+  const other = { ...capture(), video: { ...capture().video, id: 'ZzZzZzZzZzZ' } };
+  expect(await attachTranscript(client, 'bm1', other, {})).toEqual({ kind: 'mismatch' });
+  expect(calls).toEqual([]);
 });
 
 describe('findBookmark', () => {

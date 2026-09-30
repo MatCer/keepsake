@@ -13,12 +13,13 @@ from pathlib import Path
 import re
 import sys
 import urllib.parse
+import urllib.error
 import urllib.request
 
 from yt_transcript import LANGS, load, save, video_id
 
 PROFILE_HOME = Path(__file__).resolve().parent.parent
-MAX_BYTES = 5 * 1024 * 1024
+MAX_BYTES = 16 * 1024 * 1024  # 1M chars of UTF-8 text is embedded twice (HTML + JSON)
 NAME = re.compile(r'^keepsake-transcript-([\w-]{11})-([A-Za-z0-9-]{1,35})-([0-9a-f]{12})\.html$')
 
 
@@ -61,7 +62,7 @@ def validate(raw, vid, short_hash):
         raise ValueError('capture identity')
     t = c['transcript']
     text, segments = t['text'], t['segments']
-    if not isinstance(text, str) or not text.strip() or len(text) > 2_000_000:
+    if not isinstance(text, str) or not text.strip() or len(text) > 1_000_000:
         raise ValueError('text size')
     if not isinstance(segments, list) or not 0 < len(segments) <= 20_000:
         raise ValueError('segment count')
@@ -81,67 +82,88 @@ def validate(raw, vid, short_hash):
     return c
 
 
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, *args):  # urllib would forward the Bearer header to the new location
+        raise urllib.error.HTTPError(args[0].full_url, args[2], 'redirect refused', args[4], None)
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
+
+
 def karakeep_asset(asset_id):
     cfg = (PROFILE_HOME / 'config.yaml').read_text()
     addr = re.search(r'KARAKEEP_API_ADDR:\s*(\S+)', cfg).group(1).strip('\'"').rstrip('/')
     key = re.search(r'KARAKEEP_API_KEY:\s*(\S+)', cfg).group(1).strip('\'"')
     path = urllib.parse.quote(asset_id, safe='')
     request = urllib.request.Request(f'{addr}/api/v1/assets/{path}', headers={'Authorization': f'Bearer {key}'})
-    with urllib.request.urlopen(request, timeout=30) as response:
+    with _OPENER.open(request, timeout=30) as response:
         raw = response.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise ValueError('asset size')
     return raw
 
 
+def fingerprint(entry):
+    """Hash of the whole cache record, so a hand fix to language/generated also counts as an edit."""
+    return digest(json.dumps(entry, sort_keys=True, ensure_ascii=False))
+
+
 def import_captures(bookmarks, fetch_asset, cache_dir: Path, prov_dir: Path, now: float) -> list[str]:
     imported = []
     for b in bookmarks:
-        content = b.get('content') or {}
-        if content.get('type') != 'link':
-            continue
-        vid = video_id(content.get('url') or '')
-        if not vid:
-            continue
-        candidates = [(a, m) for a in b.get('assets', [])
-                      if a.get('assetType') == 'userUploaded'
-                      for m in [NAME.fullmatch(a.get('fileName') or '')] if m and m[1] == vid]
-        if not candidates:
-            continue
-        # ponytail: ties use the last attachment; no extra metadata request.
-        a, match = min(reversed(candidates), key=lambda pair:
-                       LANGS.index(pair[1][2]) if pair[1][2] in LANGS else len(LANGS))
-        path, prov_path = cache_dir / f'{vid}.json', prov_dir / f'{vid}.json'
-        try:
-            old = load(path, None)
-            if old is not None and old.get('status') != 'unavailable':
-                prov = load(prov_path, None)
-                if prov is None or prov.get('fileName') == a['fileName']:
-                    continue  # API-fetched/hand-made entry we never replace, or this exact attachment is imported
-            c = validate(fetch_asset(a['id']), vid, match[3])
-            t = c['transcript']
-            if old is not None and old.get('status') != 'unavailable':
-                prov = load(prov_path, {})
-                if (old.get('status') != 'ok' or not isinstance(old.get('text'), str)
-                        or prov.get('cacheTextSha256') != digest(old['text'])
-                        or t['sha256'] == digest(old['text'])):
-                    continue
-            cache = {'status': 'ok', 'language': t.get('language') or 'und',
-                     'generated': t.get('generated'), 'text': t['text']}
-            provenance = {'provenance': 'browser-dom', 'capturedAt': c.get('capturedAt'),
-                          'importedAt': datetime.fromtimestamp(now, timezone.utc).isoformat(),
-                          'bookmarkId': b['id'], 'assetId': a['id'], 'fileName': a['fileName'],
-                          'sha256': t['sha256'], 'cacheTextSha256': t['sha256'],
-                          **{k: t.get(k) for k in ('language', 'languageLabel', 'generated', 'segments', 'chapters')},
-                          'title': c.get('title'), 'url': c.get('url')}
-            cache_dir.mkdir(parents=True, exist_ok=True)
-            prov_dir.mkdir(parents=True, exist_ok=True)
-            save(path, cache)
-            save(prov_path, provenance)
+        try:  # one malformed bookmark or attachment must not stop the queue
+            vid = import_one(b, fetch_asset, cache_dir, prov_dir, now)
+        except Exception as e:  # exception text may contain secrets, so only the type is printed
+            try:
+                label = video_id(b['content']['url']) or 'a bookmark'
+            except Exception:
+                label = 'a bookmark'
+            vid = None
+            print(f'keepsake_import: rejected {label}: {type(e).__name__}', file=sys.stderr)
+        if vid:
             imported.append(vid)
-        except Exception as e:  # one bad attachment must not stop the queue; exception text may contain secrets
-            print(f'keepsake_import: rejected {vid}: {type(e).__name__}', file=sys.stderr)
     return imported
+
+
+def import_one(b, fetch_asset, cache_dir, prov_dir, now):
+    content = b.get('content') or {}
+    if content.get('type') != 'link':
+        return None
+    vid = video_id(content.get('url') or '')
+    if not vid:
+        return None
+    candidates = [(a, m) for a in b.get('assets') or []
+                  if a.get('assetType') == 'userUploaded'
+                  for m in [NAME.fullmatch(a.get('fileName') or '')] if m and m[1] == vid]
+    if not candidates:
+        return None
+    # ponytail: ties use the last attachment; no extra metadata request.
+    a, match = min(reversed(candidates), key=lambda pair:
+                   LANGS.index(pair[1][2]) if pair[1][2] in LANGS else len(LANGS))
+    path, prov_path = cache_dir / f'{vid}.json', prov_dir / f'{vid}.json'
+    old = load(path, None)
+    if old is not None and old.get('status') != 'unavailable':
+        prov = load(prov_path, None)
+        # Replace only our own, untouched earlier import, and only with a different attachment.
+        if prov is None or prov.get('fileName') == a['fileName'] or prov.get('cacheSha256') != fingerprint(old):
+            return None
+    c = validate(fetch_asset(a['id']), vid, match[3])
+    t = c['transcript']
+    cache = {'status': 'ok', 'language': t.get('language') or 'und',
+             'generated': t.get('generated'), 'text': t['text']}
+    if old == cache:
+        return None
+    provenance = {'provenance': 'browser-dom', 'capturedAt': c.get('capturedAt'),
+                  'importedAt': datetime.fromtimestamp(now, timezone.utc).isoformat(),
+                  'bookmarkId': b['id'], 'assetId': a['id'], 'fileName': a['fileName'],
+                  'sha256': t['sha256'], 'cacheSha256': fingerprint(cache),
+                  **{k: t.get(k) for k in ('language', 'languageLabel', 'generated', 'segments', 'chapters')},
+                  'title': c.get('title'), 'url': c.get('url')}
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    prov_dir.mkdir(parents=True, exist_ok=True)
+    save(path, cache)
+    save(prov_path, provenance)
+    return vid
 
 
 def selftest():

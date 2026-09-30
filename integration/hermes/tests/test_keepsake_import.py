@@ -2,7 +2,9 @@
 import contextlib
 import hashlib
 import io
+import http.server
 import json
+import threading
 from pathlib import Path
 import sys
 import tempfile
@@ -79,7 +81,7 @@ class ImportTests(unittest.TestCase):
             "provenance": "browser-dom", "capturedAt": c["capturedAt"],
             "importedAt": "2026-09-30T20:00:00+00:00", "bookmarkId": "bookmark",
             "assetId": "asset", "fileName": bookmark(c)["assets"][0]["fileName"],
-            "sha256": t["sha256"], "cacheTextSha256": t["sha256"],
+            "sha256": t["sha256"], "cacheSha256": imp.fingerprint({"status": "ok", "language": "en", "generated": True, "text": "hello world"}),
             **{k: t[k] for k in ("language", "languageLabel", "generated", "segments", "chapters")},
             "title": c["title"], "url": c["url"]})
         out = io.StringIO()
@@ -143,6 +145,22 @@ class ImportTests(unittest.TestCase):
         imp.import_captures([bookmark(c)], count, self.cache, self.prov, NOW)
         self.assertEqual(calls, [])
 
+    def test_hand_edited_metadata_is_never_overwritten(self):
+        self.run_import()
+        data = json.loads(self.path.read_text())
+        data["language"] = "sk"  # a manual correction that leaves the text untouched
+        self.path.write_text(json.dumps(data))
+        before = self.path.read_bytes()
+        self.assertEqual(self.run_import(capture("new capture")), [])
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_malformed_bookmark_does_not_stop_the_queue(self):
+        c = capture()
+        bad = [{"id": "x", "content": {"type": "link", "url": f"https://youtu.be/{VID}"}, "assets": [None]}, None, {"content": None}]
+        with contextlib.redirect_stderr(io.StringIO()):
+            got = imp.import_captures([*bad, bookmark(c)], lambda _: html(c), self.cache, self.prov, NOW)
+        self.assertEqual(got, [VID])
+
     def test_ownership(self):
         for mode in ("api", "edited", "own", "unavailable"):
             with self.subTest(mode=mode):
@@ -204,18 +222,61 @@ class ImportTests(unittest.TestCase):
             self.assertEqual(imp.import_captures([bookmark()], fail, self.cache, self.prov, NOW), [])
         self.assertNotIn("secret", err.getvalue())
 
-    def test_asset_http(self):
-        root = Path(self.tmp.name)
-        (root / "config.yaml").write_text('KARAKEEP_API_ADDR: "https://example.test/"\nKARAKEEP_API_KEY: "test-key"\n')
-        with patch.object(imp, "PROFILE_HOME", root), patch("urllib.request.urlopen") as open_url:
-            open_url.return_value.__enter__.return_value.read.return_value = b"asset"
-            self.assertEqual(imp.karakeep_asset("an/id"), b"asset")
-            request = open_url.call_args.args[0]
-            self.assertEqual(request.full_url, "https://example.test/api/v1/assets/an%2Fid")
-            self.assertEqual(request.get_header("Authorization"), "Bearer test-key")
-            self.assertEqual(open_url.call_args.kwargs, {"timeout": 30})
-            open_url.return_value.__enter__.return_value.read.assert_called_once_with(5 * 1024 * 1024 + 1)
+    def serve(self, handler):
+        server = http.server.HTTPServer(("127.0.0.1", 0), handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        return f"http://127.0.0.1:{server.server_port}"
 
+    def fetch_from(self, addr, asset_id="an/id"):
+        root = Path(self.tmp.name)
+        (root / "config.yaml").write_text(f'KARAKEEP_API_ADDR: "{addr}/"\nKARAKEEP_API_KEY: "test-key"\n')
+        patch.stopall()  # setUp forbids urlopen; these tests talk to a local server only
+        with patch.object(imp, "PROFILE_HOME", root):
+            return imp.karakeep_asset(asset_id)
+
+    def test_asset_http(self):
+        seen = []
+
+        class Ok(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append((self.path, self.headers.get("Authorization")))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b"asset")
+
+            def log_message(self, *args):
+                pass
+
+        self.assertEqual(self.fetch_from(self.serve(Ok)), b"asset")
+        self.assertEqual(seen, [("/api/v1/assets/an%2Fid", "Bearer test-key")])
+
+    def test_redirect_never_forwards_the_key(self):
+        leaked = []
+
+        class Sink(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                leaked.append(self.headers.get("Authorization"))
+                self.send_response(200)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        sink = self.serve(Sink)
+
+        class Redirect(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", f"{sink}/steal")
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        with self.assertRaises(Exception):
+            self.fetch_from(self.serve(Redirect))
+        self.assertEqual(leaked, [])
 
 if __name__ == "__main__":
     unittest.main()

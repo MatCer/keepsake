@@ -14,20 +14,37 @@ export type AttachOutcome =
   | { kind: 'attached' }
   | { kind: 'replaced' }
   | { kind: 'already' }
+  | { kind: 'mismatch' }
   | { kind: 'conflict'; existing: Asset };
+
+let queue: Promise<unknown> = Promise.resolve();
 
 /**
  * Attach a captured transcript to a bookmark as a `userUploaded` HTML asset.
  * Identical capture: nothing happens. A different capture in the same language is only
  * replaced when the caller passes that asset's id back after asking the user.
  */
-export async function attachTranscript(
+export function attachTranscript(
+  client: AttachClient,
+  bookmarkId: string,
+  capture: YoutubeCapture,
+  opts: { replaceAssetId?: string; tag?: string },
+): Promise<AttachOutcome> {
+  // One at a time, so two clicks (or a click and an outbox retry) can't both pass the file-name check.
+  const run = queue.then(() => attachOnce(client, bookmarkId, capture, opts));
+  queue = run.catch(() => undefined);
+  return run;
+}
+
+async function attachOnce(
   client: AttachClient,
   bookmarkId: string,
   capture: YoutubeCapture,
   opts: { replaceAssetId?: string; tag?: string },
 ): Promise<AttachOutcome> {
   const bookmark = await client.getBookmark(bookmarkId, false);
+  // The tab may have navigated to another video between opening the popup and clicking Attach.
+  if (videoIdFromUrl(bookmark.content.url ?? '') !== capture.video.id) return { kind: 'mismatch' };
   const name = assetFileName(capture);
   const wanted = parseAssetFileName(name);
   const ours = bookmark.assets.filter((a) => a.assetType === 'userUploaded' && a.fileName);

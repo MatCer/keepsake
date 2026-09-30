@@ -27,8 +27,8 @@ const enc = encodeURIComponent;
 export class KarakeepClient {
   private readonly origin: string;
   constructor(address: string, private readonly apiKey: string, private readonly opts: ClientOptions = {}) { this.origin = normalizeAddress(address); }
-  private send(method: string, path: string, template: string, body?: unknown): Promise<Response> {
-    return request(this.origin, `/api/v1${path}`, template, method, body === undefined ? undefined : JSON.stringify(body), this.apiKey, this.opts);
+  private send(method: string, path: string, template: string, body?: unknown, attempts?: number): Promise<Response> {
+    return request(this.origin, `/api/v1${path}`, template, method, body === undefined ? undefined : JSON.stringify(body), this.apiKey, { ...this.opts, attempts });
   }
   async me(): Promise<{ id: string; name: string | null; email: string | null }> {
     const value = await json(await this.send('GET', '/users/me', '/users/me'));
@@ -79,12 +79,12 @@ export class KarakeepClient {
   async removeFromList(listId: string, id: string): Promise<void> { await this.send('DELETE', `/lists/${enc(listId)}/bookmarks/${enc(id)}`, '/lists/{listId}/bookmarks/{id}'); }
   async uploadHtmlAsset(fileName: string, html: string): Promise<string> {
     const body = new FormData(); body.append('file', new Blob([html], { type: 'text/html' }), fileName);
-    const value = await json(await request(this.origin, '/api/v1/assets', '/assets', 'POST', body, this.apiKey, this.opts));
+    const value = await json(await request(this.origin, '/api/v1/assets', '/assets', 'POST', body, this.apiKey, { ...this.opts, attempts: 1 }));
     if (!isRecord(value) || typeof value.assetId !== 'string') return invalid();
     return value.assetId;
   }
-  async attachAsset(bookmarkId: string, assetId: string): Promise<void> { await this.send('POST', `/bookmarks/${enc(bookmarkId)}/assets`, '/bookmarks/{id}/assets', { id: assetId, assetType: 'userUploaded' }); }
-  async replaceAsset(bookmarkId: string, oldAssetId: string, newAssetId: string): Promise<void> { await this.send('PUT', `/bookmarks/${enc(bookmarkId)}/assets/${enc(oldAssetId)}`, '/bookmarks/{id}/assets/{assetId}', { assetId: newAssetId }); }
+  async attachAsset(bookmarkId: string, assetId: string): Promise<void> { await this.send('POST', `/bookmarks/${enc(bookmarkId)}/assets`, '/bookmarks/{id}/assets', { id: assetId, assetType: 'userUploaded' }, 1); }
+  async replaceAsset(bookmarkId: string, oldAssetId: string, newAssetId: string): Promise<void> { await this.send('PUT', `/bookmarks/${enc(bookmarkId)}/assets/${enc(oldAssetId)}`, '/bookmarks/{id}/assets/{assetId}', { assetId: newAssetId }, 1); }
 }
 
 export async function exchangeApiKey(address: string, email: string, password: string, opts: ClientOptions = {}): Promise<string> {

@@ -2,7 +2,6 @@ import { isRecord, isNullableString } from './capture-validation';
 import { invalid } from './karakeep-http';
 
 export interface Tag { id: string; name: string }
-export interface List { id: string; name: string; type?: 'manual' | 'smart' }
 export interface Bookmark {
   id: string;
   title: string | null;
@@ -26,11 +25,6 @@ export interface Bookmark {
 export function tag(value: unknown): Tag {
   if (!isRecord(value) || typeof value.id !== 'string' || typeof value.name !== 'string') return invalid();
   return { id: value.id, name: value.name };
-}
-export function list(value: unknown): List {
-  const base = tag(value);
-  if (!isRecord(value) || (value.type !== undefined && value.type !== 'manual' && value.type !== 'smart')) return invalid();
-  return value.type === undefined ? base : { ...base, type: value.type };
 }
 function content(value: unknown): Bookmark['content'] {
   if (!isRecord(value) || !['link', 'text', 'asset', 'unknown'].includes(String(value.type))) return invalid();

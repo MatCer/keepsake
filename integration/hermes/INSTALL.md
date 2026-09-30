@@ -71,9 +71,9 @@ find cache/yt_transcripts_provenance -maxdepth 1 -name '*.json' -print
 ```
 
 If removal is wanted, review/back up those files and their matching
-`cache/yt_transcripts/<videoId>.json` files, then delete each reviewed pair. Check
-`cacheTextSha256` against the current text hash first if retaining later manual
-edits matters. Do not delete `_state.json` or unrelated cache entries. Removing
+`cache/yt_transcripts/<videoId>.json` files, then delete each reviewed pair. An entry whose
+`cacheSha256` no longer matches the cache record (sha256 of its JSON with sorted keys)
+was edited by hand after import; keep it if those edits matter. Do not delete `_state.json` or unrelated cache entries. Removing
 an imported cache file makes that video **pending** again; restored prefetch may
 fetch it through YouTube. The old script ignores `_config.json`; remove it if
 desired. Resume the cron after rollback.

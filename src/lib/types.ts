@@ -108,6 +108,6 @@ export const DEFAULT_SETTINGS: Settings = {
 
 export const LIMITS = {
   maxSegments: 20_000,
-  maxTranscriptChars: 2_000_000,
+  maxTranscriptChars: 1_000_000,
   maxPageMarkdownChars: 2_000_000,
 } as const;

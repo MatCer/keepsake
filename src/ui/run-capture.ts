@@ -2,13 +2,14 @@ import { browser } from 'wxt/browser';
 import { isCapturableVideoUrl, probePlayer } from '../lib/youtube';
 import type { CaptureResult, PlayerSnapshot } from '../lib/types';
 
-const str = (v: unknown) => (typeof v === 'string' ? v : null);
+// Bounded so a hostile page can't hand back megabytes of "metadata".
+const str = (v: unknown, max = 10_000) => (typeof v === 'string' ? v.slice(0, max) : null);
 
 /** The MAIN-world snapshot comes from the page's JS, so it is re-checked here before use. */
 export function sanitizePlayer(v: unknown): PlayerSnapshot | null {
   if (!v || typeof v !== 'object') return null;
   const p = v as Record<string, unknown>;
-  const tracks = Array.isArray(p.captionTracks) ? p.captionTracks : [];
+  const tracks = Array.isArray(p.captionTracks) ? p.captionTracks.slice(0, 200) : [];
   return {
     videoId: str(p.videoId),
     title: str(p.title),
@@ -19,7 +20,7 @@ export function sanitizePlayer(v: unknown): PlayerSnapshot | null {
     captionTracks: tracks.flatMap((t: unknown) => {
       const o = (t ?? {}) as Record<string, unknown>;
       return typeof o.languageCode === 'string' && typeof o.name === 'string'
-        ? [{ languageCode: o.languageCode, name: o.name, generated: o.generated === true }]
+        ? [{ languageCode: o.languageCode.slice(0, 35), name: o.name.slice(0, 200), generated: o.generated === true }]
         : [];
     }),
   };
