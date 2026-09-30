@@ -17,6 +17,11 @@ Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or att
 to the Karakeep bookmark, where the brain_janitor jobs can pick them up
 (see [integration/hermes](integration/hermes/INSTALL.md)).
 
+<p align="center">
+  <img src="docs/screenshots/popup-light.png" width="300" alt="Popup on a YouTube video: bookmark with tags and note, transcript captured, attach button">
+  <img src="docs/screenshots/popup-dark.png" width="300" alt="The same popup in dark mode">
+</p>
+
 ## Install
 
 Needs Node 24 and pnpm.
