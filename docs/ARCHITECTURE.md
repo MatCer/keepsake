@@ -104,24 +104,27 @@ dropped silently.
 
 ## Server side: brain_janitor integration (proposal, not deployed)
 
+Karakeep is the only place transcripts live. A video's transcript is the
+`keepsake-transcript-*.html` attachment on its link bookmark, whether the browser
+extension uploaded it (`provenance: browser-dom`) or the paced API fallback did
+(`provenance: youtube-api`). There is no local transcript cache anymore; only the pacing
+state `cache/yt_transcripts/_state.json` (and an optional `_config.json`) stays on disk.
+
 `integration/hermes/` contains:
 
-- `keepsake_import.py`: for bookmarks with a `keepsake-transcript-*.html` attachment,
-  downloads the asset (`GET /api/v1/assets/{id}`), validates the embedded record (schema,
-  11-char id matching the bookmark URL, non-empty text, size), and writes
-  `cache/yt_transcripts/<id>.json` in the existing shape
-  `{status, language, generated, text}`. Provenance goes to a separate
-  `cache/yt_transcripts_provenance/<id>.json`, so `yt_transcript.py get` and the hourly
-  gate keep working unchanged. It never overwrites an existing `ok` cache entry unless
-  that entry is its own earlier import (its text hash still matches the provenance
-  file), i.e. never an API-fetched or hand-edited transcript.
-- `yt_transcript.patch`: in `prefetch()`, run the import first, then skip bookmarks
-  younger than `grace_minutes` (default 30: time to clip after bookmarking), and only
-  call YouTube when `api_fallback` is true. Settings live in
-  `cache/yt_transcripts/_config.json`; the defaults keep today's behaviour apart from the
-  grace period.
+- `karakeep_transcripts.py`: picks a bookmark's transcript attachment (by file name, no
+  network), derives the status (`ok` = attachment, `unavailable` = tag
+  `transcript-unavailable`, else `pending`), downloads and validates an attachment, and
+  uploads new ones in the extension's exact format. HTTP refuses redirects so the API key
+  is never forwarded.
+- `yt_transcript.py` (+ `.patch`): `prefetch()` only runs when `api_fallback` is true;
+  it skips bookmarks that already have an attachment or are younger than
+  `grace_minutes` (default 30, time to clip after bookmarking), fetches at most one
+  transcript per tick with the existing pacing and block handling, and uploads it to
+  the bookmark. No captions → the `transcript-unavailable` tag. `get <url>` finds the
+  bookmark in Karakeep, reads the attachment and prints the same output as before, so
+  the agent's skills don't change.
+- `karakeep_gate.py` (+ `.patch`): the hourly gate computes the transcript status from
+  the bookmark instead of the cache (one line).
 
-Because a cache file now exists, the existing `status(vid) == 'pending'` check already
-makes the prefetch skip browser-captured videos. No new HTTP endpoint is needed: the
-Karakeep attachment is the hand-off, and brain_janitor already holds Karakeep
-credentials.
+No new HTTP endpoint: brain_janitor already holds Karakeep credentials.
