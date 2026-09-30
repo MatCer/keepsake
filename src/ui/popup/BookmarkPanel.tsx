@@ -7,6 +7,7 @@ export function BookmarkCard({
   client,
   address,
   bookmark,
+  tabTitle,
   created,
   onChange,
   onDeleted,
@@ -14,6 +15,7 @@ export function BookmarkCard({
   client: KarakeepClient;
   address: string;
   bookmark: Bookmark;
+  tabTitle: string;
   created: boolean;
   onChange: (b: Bookmark) => void;
   onDeleted: () => void;
@@ -30,7 +32,7 @@ export function BookmarkCard({
       setError(e instanceof Error ? e.message : 'Request failed');
     }
   };
-  const title = bookmark.title || bookmark.content.title || bookmark.content.url || 'Untitled';
+  const title = bookmark.title || bookmark.content.title || tabTitle || bookmark.content.url || 'Untitled';
 
   return (
     <section className="space-y-3">

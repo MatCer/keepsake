@@ -89,12 +89,15 @@ export function CapturePanel({
       <StatusBanner result={result} />
       {capture ? (
         <>
-          <pre className="max-h-40 overflow-auto rounded-lg bg-zinc-50 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
-            {markdown.slice(0, 4000)}
-          </pre>
-          <div className="flex flex-wrap gap-1.5">
+          {capture.kind === 'youtube-transcript' && client && bookmark && (
+            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} />
+          )}
+          {capture.kind === 'youtube-transcript' && !bookmark && (
+            <p className="text-[12px] text-zinc-500">Save the bookmark to attach this transcript to it.</p>
+          )}
+          <div className="grid grid-cols-4 gap-1.5">
             <Button onClick={copy}>
-              <Icon name="copy" /> {copied ? 'Copied' : 'Copy Markdown'}
+              <Icon name="copy" /> {copied ? 'Copied' : 'Copy'}
             </Button>
             <Button onClick={() => download(noteFileName(capture), markdown, 'text/markdown')}>
               <Icon name="download" /> .md
@@ -115,12 +118,9 @@ export function CapturePanel({
               </Button>
             )}
           </div>
-          {capture.kind === 'youtube-transcript' && client && bookmark && (
-            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} />
-          )}
-          {capture.kind === 'youtube-transcript' && !bookmark && (
-            <p className="text-[12px] text-zinc-500">Save the bookmark to attach this transcript to it.</p>
-          )}
+          <pre className="max-h-28 overflow-auto rounded-lg bg-zinc-50 p-2.5 font-mono text-[11px] leading-relaxed whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">
+            {markdown.slice(0, 4000)}
+          </pre>
         </>
       ) : (
         result.status !== 'unsupported' && (

@@ -170,6 +170,7 @@ function Main({ tab, settings, client }: { tab: Tab; settings: Settings; client:
               client={client}
               address={settings.address}
               bookmark={state.bookmark}
+              tabTitle={tab.title}
               created={state.created}
               onChange={(b) => setState({ ...state, bookmark: b })}
               onDeleted={() => setState({ phase: 'deleted' })}
