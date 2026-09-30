@@ -1,0 +1,65 @@
+<!doctype html>
+<!--
+  Static stand-in for https://www.youtube.com/watch?v=<id>, served by Playwright routing.
+  Mirrors the element/class structure of YouTube's desktop transcript panel as observed on
+  2026-09-30. All text is original test content. {{VIDEO_ID}} and {{PANEL}} are filled in by
+  the test: PANEL=open renders an expanded transcript, PANEL=closed renders none.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Keepsake fixture video - YouTube</title>
+    <link rel="canonical" href="https://www.youtube.com/watch?v={{VIDEO_ID}}" />
+  </head>
+  <body>
+    <ytd-app>
+      <ytd-watch-flexy video-id="{{VIDEO_ID}}">
+        <div id="movie_player"></div>
+        <ytd-watch-metadata>
+          <h1>Keepsake fixture video</h1>
+          <ytd-channel-name><a href="/@fixture">Fixture Channel</a></ytd-channel-name>
+        </ytd-watch-metadata>
+        <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
+        <ytd-engagement-panel-section-list-renderer visibility="{{VISIBILITY}}">
+          <div id="content">
+            <yt-section-list-renderer>
+              <yt-item-section-renderer>
+                <div id="header"><div>
+                  <macro-markers-panel-item-view-model class="ytwMacroMarkersPanelItemViewModelHost">
+                    <timeline-chapter-view-model class="ytwTimelineChapterViewModelHost"><h3 class="ytwTimelineChapterViewModelTitle">Getting started</h3></timeline-chapter-view-model>
+                  </macro-markers-panel-item-view-model>
+                </div></div>
+                <div id="contents">{{SEGMENTS_1}}</div>
+              </yt-item-section-renderer>
+              <yt-item-section-renderer>
+                <div id="header"><div>
+                  <macro-markers-panel-item-view-model class="ytwMacroMarkersPanelItemViewModelHost">
+                    <timeline-chapter-view-model class="ytwTimelineChapterViewModelHost"><h3 class="ytwTimelineChapterViewModelTitle">Edge cases &amp; escaping</h3></timeline-chapter-view-model>
+                  </macro-markers-panel-item-view-model>
+                </div></div>
+                <div id="contents">{{SEGMENTS_2}}</div>
+              </yt-item-section-renderer>
+            </yt-section-list-renderer>
+          </div>
+        </ytd-engagement-panel-section-list-renderer>
+      </ytd-watch-flexy>
+    </ytd-app>
+    <script>
+      document.getElementById('movie_player').getPlayerResponse = () => ({
+        videoDetails: {
+          videoId: '{{VIDEO_ID}}',
+          title: 'Keepsake fixture video',
+          author: 'Fixture Channel',
+          lengthSeconds: '95',
+          shortDescription: 'A fixture used by the Keepsake end-to-end tests. It has two chapters.',
+        },
+        microformat: { playerMicroformatRenderer: { publishDate: '2026-09-01T10:00:00-07:00' } },
+        captions: {
+          playerCaptionsTracklistRenderer: {
+            captionTracks: [{ languageCode: 'en', kind: 'asr', name: { simpleText: 'English (auto-generated)' } }],
+          },
+        },
+      });
+    </script>
+  </body>
+</html>

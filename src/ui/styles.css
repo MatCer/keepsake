@@ -1,0 +1,27 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  --color-accent: #7c3aed;
+  --color-accent-hover: #6d28d9;
+  --color-accent-soft: #ede9fe;
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+  html.dark {
+    color-scheme: dark;
+    --color-accent-soft: #2e1065;
+  }
+  body {
+    @apply bg-white font-sans text-[13px] text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-accent;
+  }
+}

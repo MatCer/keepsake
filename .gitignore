@@ -29,3 +29,5 @@ integration/hermes/**/__pycache__
 test-results
 playwright-report
 .karakeep-local
+.output-e2e
+.claude/
