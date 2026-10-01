@@ -18,8 +18,8 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
 
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
 to the Karakeep bookmark. Karakeep is the single store for transcripts: the brain_janitor
-jobs read them from there and upload their own API fallback there too
-(see [integration/hermes](integration/hermes/INSTALL.md)).
+jobs read them from there and upload their own API fallback there too (their setup lives
+in the private `MatCer/hermes-setup` repo).
 
 <p align="center">
   <img src="docs/screenshots/popup-light.png" width="300" alt="Popup on a YouTube video: bookmark with tags and note, transcript captured, attach button">
@@ -100,7 +100,6 @@ or other tabs. Page reading happens only when you open the popup.
 
 ```sh
 pnpm test                                               # unit tests (vitest)
-python3 -m unittest discover -s integration/hermes/tests  # importer + prefetch patch
 scripts/karakeep-local.sh up && pnpm test:e2e           # Playwright + local Karakeep 0.32.0
 ```
 
@@ -126,9 +125,8 @@ YouTube URLs never contacts YouTube.
 - **Karakeep:** Keepsake only adds attachments named `keepsake-transcript-*.html` (and the
   optional transcript tag). Delete them from the bookmark's Attachments. Bookmarks it
   created are ordinary link bookmarks.
-- **brain_janitor:** see the Rollback section of
-  [integration/hermes/INSTALL.md](integration/hermes/INSTALL.md): restore the two `.bak`
-  scripts and delete `karakeep_transcripts.py`. Attachments stay in Karakeep and are harmless.
+- **brain_janitor:** see the rollback notes in the `MatCer/hermes-setup` repo. Attachments
+  stay in Karakeep and are harmless.
 
 ## License
 

@@ -106,29 +106,12 @@ Failed Karakeep writes retry 3× with backoff (0.5 s, 1.5 s, 4 s; only network e
 429 and 5xx), then the capture goes to the outbox with a visible "Retry" and is never
 dropped silently.
 
-## Server side: brain_janitor integration (proposal, not deployed)
+## Server side: brain_janitor
 
 Karakeep is the only place transcripts live. A video's transcript is the
 `keepsake-transcript-*.html` attachment on its link bookmark, whether the browser
-extension uploaded it (`provenance: browser-dom`) or the paced API fallback did
-(`provenance: youtube-api`). There is no local transcript cache anymore; only the pacing
-state `cache/yt_transcripts/_state.json` (and an optional `_config.json`) stays on disk.
-
-`integration/hermes/` contains:
-
-- `karakeep_transcripts.py`: picks a bookmark's transcript attachment (by file name, no
-  network), derives the status (`ok` = attachment, `unavailable` = tag
-  `transcript-unavailable`, else `pending`), downloads and validates an attachment, and
-  uploads new ones in the extension's exact format. HTTP refuses redirects so the API key
-  is never forwarded.
-- `yt_transcript.py` (+ `.patch`): `prefetch()` only runs when `api_fallback` is true;
-  it skips bookmarks that already have an attachment or are younger than
-  `grace_minutes` (default 30, time to clip after bookmarking), fetches at most one
-  transcript per tick with the existing pacing and block handling, and uploads it to
-  the bookmark. No captions → the `transcript-unavailable` tag. `get <url>` finds the
-  bookmark in Karakeep, reads the attachment and prints the same output as before, so
-  the agent's skills don't change.
-- `karakeep_gate.py` (+ `.patch`): the hourly gate computes the transcript status from
-  the bookmark instead of the cache (one line).
-
-No new HTTP endpoint: brain_janitor already holds Karakeep credentials.
+extension uploaded it (`provenance: browser-dom`) or brain_janitor's paced API fallback
+did (`provenance: youtube-api`). The brain_janitor scripts that read, prefetch and gate on
+these attachments live in the private `MatCer/hermes-setup` repo
+(`profiles/brain_janitor/scripts`); `e2e/hermes_e2e.py` runs them against the local
+Karakeep when that repo is checked out next to this one (or `HERMES_SCRIPTS` points to it).
