@@ -97,8 +97,7 @@ and not yet classified), Keepsake:
    when those lists exist.
 
 This runs in the extension's background worker, so you can close the popup right away.
-Bookmarks already tagged `jev-tagged`, or already triaged by Hermes (`janitor-processed`),
-are skipped. On YouTube, Jev runs only when the transcript was captured.
+Bookmarks that already have `jev-tagged` or any `topic-*` tag are skipped. On YouTube, Jev runs only when the transcript was captured.
 
 ## How Karakeep stores the transcript
 
@@ -131,9 +130,6 @@ YouTube tab and the popup. It asserts:
 - zero YouTube/caption requests while capturing;
 - the unopened-panel instruction appears and no transcript is created;
 - the exact segments, timestamps and chapters arrive in Karakeep;
-- with the private `hermes-setup` repo checked out next to this one, the Hermes transcript
-  prefetch skips the captured video, fetches an uncaptured one through a stub and
-  uploads it to Karakeep, `get` reads from Karakeep, and no local transcript files exist;
 - a duplicate click leaves one bookmark, one attachment, and the original note and tags.
 
 The local Karakeep runs with its crawler disabled and a dead proxy, so bookmarking test

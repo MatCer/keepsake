@@ -36,7 +36,7 @@ function setup() {
   } }));
   return { bookmark, calls, client, tags, lists, fetcher, opts: { fetch: fetcher } };
 }
-test.each(['jev-tagged', 'janitor-processed'])('skips %s without writes or classification', async name => {
+test.each(['jev-tagged', 'topic-ai'])('skips %s without writes or classification', async name => {
   const f = setup(); f.bookmark.tags.push({ id: 'tag', name, attachedBy: 'human' });
   expect(await jevTag(f.client, 'bm', capture(), config, f.opts)).toEqual({ kind: 'skipped' });
   expect(f.calls).toEqual([]); expect(f.fetcher).not.toHaveBeenCalled();
