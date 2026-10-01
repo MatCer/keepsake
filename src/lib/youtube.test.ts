@@ -82,6 +82,13 @@ function closedDoc(withButton = true) {
   const parent = panels[0]!.parentElement!;
   panels.forEach(panel => panel.remove());
   const clicks = { count: 0 };
+  for (const panel of panels) {
+    const close = panel.insertBefore(d.createElement('div'), panel.firstChild);
+    close.id = 'header';
+    const holder = close.appendChild(d.createElement('div'));
+    holder.id = 'visibility-button';
+    holder.appendChild(d.createElement('button')).addEventListener('click', () => panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_HIDDEN'));
+  }
   if (withButton) {
     const section = parent.appendChild(d.createElement('ytd-video-description-transcript-section-renderer'));
     section.appendChild(d.createElement('button')).addEventListener('click', () => { clicks.count++; panels.forEach(panel => parent.append(panel)); });
@@ -96,13 +103,17 @@ test("opens a closed transcript panel with YouTube's own button only when asked"
   const on = closedDoc();
   expect(await readOrOpenTranscript(on.d, url, player, now, true, noWait)).toEqual(await readTranscript(doc(), url, player, now));
   expect(on.clicks.count).toBe(1);
+  // The page is put back: the panel this capture opened is closed again.
+  expect(on.d.querySelectorAll('ytd-engagement-panel-section-list-renderer[visibility$="EXPANDED"]')).toHaveLength(0);
   const sleep = vi.fn(noWait);
   expect(await readOrOpenTranscript(closedDoc(false).d, url, player, now, true, sleep)).toMatchObject({ status: 'panel-not-loaded' });
   expect(sleep).not.toHaveBeenCalled();
 });
 test('an open panel or a video without captions is never clicked', async () => {
   const sleep = vi.fn(noWait);
-  expect(await readOrOpenTranscript(doc(), url, player, now, true, sleep)).toMatchObject({ status: 'captured' });
+  const open = doc();
+  expect(await readOrOpenTranscript(open, url, player, now, true, sleep)).toMatchObject({ status: 'captured' });
+  expect(open.querySelectorAll('ytd-engagement-panel-section-list-renderer[visibility$="EXPANDED"]').length).toBeGreaterThan(0);
   const none = closedDoc();
   expect(await readOrOpenTranscript(none.d, url, { ...player, captionTracks: [] }, now, true, sleep)).toMatchObject({ status: 'no-captions' });
   expect(none.clicks.count).toBe(0);

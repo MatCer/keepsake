@@ -17,7 +17,8 @@ toolbar button opens the popup, which:
   player object that is already in memory. No `fetch`, no XHR, no extra tab, no
   timedtext/innertube/API fallback. If the panel is closed and *Open YouTube transcript
   automatically* is on (default), capture clicks YouTube's own **Show transcript** button
-  and waits up to 10 s for the segments; YouTube's page then sends the same single
+  and waits up to 10 s for the segments, then closes the panel it opened with YouTube's
+  close button; YouTube's page sends the same single
   `youtubei/v1/get_panel` request a manual click sends. With the setting off, the popup asks
   the user to open the panel and retry.
 - Capture runs only after a click (`activeTab` + `scripting`). No content scripts are

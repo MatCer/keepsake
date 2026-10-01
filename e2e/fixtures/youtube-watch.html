@@ -29,6 +29,9 @@
         <template id="pending-2">{{PENDING_2}}</template>
         <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
         <ytd-engagement-panel-section-list-renderer visibility="{{VISIBILITY}}">
+          <div id="header"><div id="visibility-button"><ytd-button-renderer><yt-button-shape>
+            <button aria-label="Close">×</button>
+          </yt-button-shape></ytd-button-renderer></div></div>
           <div id="content">
             <yt-section-list-renderer>
               <yt-item-section-renderer>
@@ -61,6 +64,9 @@
           lists[1].replaceChildren(document.getElementById('pending-2').content.cloneNode(true));
           panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
         }, 300);
+      });
+      document.querySelector('#visibility-button button').addEventListener('click', (e) => {
+        e.target.closest('ytd-engagement-panel-section-list-renderer').setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_HIDDEN');
       });
       document.getElementById('movie_player').getPlayerResponse = () => ({
         videoDetails: {

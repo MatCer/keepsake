@@ -91,24 +91,29 @@ export async function readTranscript(doc: Document, url: string, player: PlayerS
 /**
  * readTranscript, but when the panel is closed and `open` is set, clicks YouTube's own
  * "Show transcript" button first. YouTube then loads the transcript exactly as after a manual
- * click (one request from the page itself); Keepsake still fetches nothing. Waits up to 10 s.
+ * click (one request from the page itself); Keepsake still fetches nothing. Waits up to 10 s,
+ * then closes the panel again so the page looks as it did before.
  */
 export async function readOrOpenTranscript(doc: Document, url: string, player: PlayerSnapshot | null, now: Date, open: boolean, sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))): Promise<CaptureResult> {
   let result = await readTranscript(doc, url, player, now);
   if (!open || result.status !== 'panel-not-loaded') return result;
   const button = doc.querySelector<HTMLElement>('ytd-video-description-transcript-section-renderer button');
   if (!button) return result;
+  const expanded = () => [...doc.querySelectorAll('ytd-engagement-panel-section-list-renderer[visibility$="EXPANDED"]')];
+  const before = new Set(expanded());
   button.click();
   let seen = -1;
   for (let waited = 0; waited < 10_000; waited += 250) {
     await sleep(250);
     result = await readTranscript(doc, url, player, now);
-    if (result.status !== 'panel-not-loaded' && result.status !== 'captured') return result;
+    if (result.status !== 'panel-not-loaded' && result.status !== 'captured') break;
     const count = result.status === 'captured' && result.capture.kind === 'youtube-transcript' ? result.capture.transcript.segments.length : -1;
     // A long transcript may render in batches: done once two reads in a row agree.
-    if (count > 0 && count === seen) return result;
+    if (count > 0 && count === seen) break;
     seen = count;
   }
+  // Close only what this click opened, with YouTube's own close button (its label is localized).
+  for (const panel of expanded()) if (!before.has(panel)) panel.querySelector<HTMLElement>('#header #visibility-button button')?.click();
   return result;
 }
 

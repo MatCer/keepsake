@@ -313,7 +313,8 @@ test('closed transcript panel: Keepsake clicks Show transcript itself when the s
   const popup = await openPopup('KsTestShut2');
   await expect(popup.getByText('Transcript captured')).toBeVisible();
   await expect(popup.getByText(`${SEGMENTS.length} segments`)).toBeVisible();
-  await expect(yt.locator('ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"]')).toHaveCount(1);
+  // Opened for the capture, then closed again: the page looks as before.
+  await expect(yt.locator('ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"]')).toHaveCount(0);
   // The fixture's button makes no request; the extension itself must not either.
   expect(youtubeTraffic()).toEqual([]);
   const opts2 = await ctx.newPage();
