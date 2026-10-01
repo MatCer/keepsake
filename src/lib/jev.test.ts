@@ -1,7 +1,7 @@
 import { expect, test, vi } from 'vitest';
 import { classify, jevPermissions, plan, type Answers } from './jev';
 
-const config = (apiKey: string) => ({ apiKey, endpoint: 'https://api.openjev.sh/v1/systemone', model: 'openjev' });
+const config = (apiKey: string) => ({ apiKey, endpoint: 'https://jev.example.com/v1/systemone', model: 'jev-model' });
 
 const answers: Answers = {
   area: { choice: 'Tech', probabilities: { Tech: 0.8 } },
@@ -13,12 +13,12 @@ test('request matches Jev contract, trims state and uses null topic criteria', a
   const fetcher = vi.fn<typeof fetch>(async () => Response.json({ answers }));
   expect(await classify(config('test-key'), state, ['topic-ai'], { fetch: fetcher })).toEqual(answers);
   const [url, init] = fetcher.mock.calls[0]!;
-  expect(url).toBe('https://api.openjev.sh/v1/systemone');
+  expect(url).toBe('https://jev.example.com/v1/systemone');
   expect(init?.method).toBe('POST');
   expect(new Headers(init?.headers).get('Authorization')).toBe('Bearer test-key');
   expect(new Headers(init?.headers).get('Content-Type')).toBe('application/json');
   const body = JSON.parse(String(init?.body));
-  expect(body.model).toBe('openjev');
+  expect(body.model).toBe('jev-model');
   expect(body.state).toEqual({ ...state, description: 'd'.repeat(600), page_text_start: 't'.repeat(3000) });
   expect(body.questions.topic.criteria).toEqual({ 'topic-ai': null, none: 'no listed topic fits' });
   expect(body.questions.area.criteria.Tech).toBe('software, AI, agents, developer tools, infrastructure, engineering');

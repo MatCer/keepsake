@@ -17,8 +17,7 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
   it asks you to open the panel and retry.
 
 With a Jev API key and host permission, Keepsake sends the title, URL, description (up to 600 characters)
-and page text/transcript (up to 3,000 characters) to the configured Jev endpoint (default
-`https://api.openjev.sh/v1/systemone`; the official Jev API, OpenRouter or a self-hosted one work too) on save or open.
+and page text/transcript (up to 3,000 characters) to the Jev endpoint you configure on save or open.
 This runs in the background worker, so closing the popup does not interrupt it. It applies research/library lists and a topic tag directly to Karakeep, then marks
 `jev-tagged`; bookmarks already `jev-tagged` or `janitor-processed` are skipped.
 Page Markdown is also attached as `keepsake-page-<hash>.html`. Jev is off by default.
@@ -68,7 +67,7 @@ Click the gear in the popup (or the extension's Options):
 | Auto-save on open | On: the tab is saved when the popup opens. Off: you confirm before saving. |
 | Auto-attach transcripts | On (default): a captured YouTube transcript is attached to the bookmark when the popup opens. Replacing a different transcript still asks first. Off: click **Attach**. |
 | Tag transcripts | Optional tag added when a transcript is attached. |
-| Jev API key / Endpoint / Model | Key empty = off; stored locally only. Endpoint (default `https://api.openjev.sh/v1/systemone`) and model (default `openjev`) select the Jev provider. Save requests permission for the endpoint's origin; saved bookmarks are then classified using page text/transcripts. |
+| Jev API key / Endpoint / Model | Key empty = off; stored locally only. Endpoint (full URL of a Jev systemone endpoint) and model select the provider; neither has a default. Save requests permission for the endpoint's origin; saved bookmarks are then classified using page text/transcripts. |
 | Theme | System, light or dark. |
 | Obsidian vault / folder | Shows an **Obsidian** button that copies the Markdown and opens `obsidian://new…&clipboard`, the same way Obsidian Web Clipper does. |
 

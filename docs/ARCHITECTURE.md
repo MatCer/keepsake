@@ -23,9 +23,9 @@ toolbar button opens the popup, which:
   the user to open the panel and retry.
 - Capture runs only after a click (`activeTab` + `scripting`). No content scripts are
   registered, no polling, no host permission at install time.
-- Network destinations are the configured Karakeep origin and the optional Jev endpoint
-  (default `api.openjev.sh`). Both require runtime host permission. Jev is disabled unless a
-  local API key is set. Jev tagging runs in the background worker (`entrypoints/background.ts`),
+- Network destinations are the configured Karakeep origin and the optional Jev endpoint.
+  Both require runtime host permission. Jev is disabled unless an API key, endpoint and model
+  are set. Jev tagging runs in the background worker (`entrypoints/background.ts`),
   which reads keys from storage itself; the popup only sends `{ type: 'jev-tag', bookmarkId, capture }`
   and the worker accepts it only from extension pages.
 - Page text, titles and transcripts are untrusted: escaped for Markdown/YAML/HTML,
@@ -41,7 +41,7 @@ The deployed server reports `{"version":"0.32.0"}` at `/api/version`. Checked in
 | `PATCH /bookmarks/{id}` `note`/`text`/`description` | Rejected. Overwrites user- or crawler-owned fields. |
 | attach as `linkHtmlContent` | Impossible: `isAllowedToAttachAsset` returns false for it (`packages/trpc/lib/attachments.ts`). The scraped HTML cannot be replaced through the API. |
 | `POST /assets` (`text/html`) + `POST /bookmarks/{id}/assets` with `assetType: "userUploaded"` | **Used.** `text/html` is in `SUPPORTED_UPLOAD_ASSET_TYPES`, `userUploaded` is attachable, and the web UI lists it under Attachments with its file name. Nothing else on the bookmark changes. |
-| `POST <Jev endpoint>` (default `https://api.openjev.sh/v1/systemone`) | Optional classification, configurable model (default `openjev`), bearer key, 30 s timeout; title/URL, description ≤600 characters, page text/transcript ≤3,000 characters. |
+| `POST <Jev endpoint>` | Optional classification, configured endpoint and model, bearer key, 30 s timeout; title/URL, description ≤600 characters, page text/transcript ≤3,000 characters. |
 | `GET /tags`, `GET /lists`, `PUT /lists/{id}/bookmarks/{id}`, `POST /bookmarks/{id}/tags` | Jev uses sorted `topic-*` tags with ≥2 bookmarks (first 250), resolves manual lists by parent/child, and writes topic plus `jev-tagged` before list memberships. |
 | `GET /bookmarks/{id}/content` (Markdown) | Not in 0.32.0. The scraped copy is read from `GET /bookmarks/{id}?includeContent=true` → `content.htmlContent`. |
 
