@@ -13,7 +13,8 @@ import tempfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-HERMES = REPO / 'integration/hermes'
+# brain_janitor scripts live in the private hermes-setup repo, checked out next to this one.
+HERMES = Path(os.environ.get('HERMES_SCRIPTS') or REPO.parent / 'hermes-setup/profiles/brain_janitor/scripts')
 
 STUB = '''
 import os

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { CHAPTERS, SEGMENTS, TEXT, watchPage } from './fixture';
@@ -184,6 +184,9 @@ test('end to end: attach to Karakeep, prefetch skips it and uploads the API fall
   expect(record.transcript.text).toBe(TEXT);
   expect(record.transcript.language).toBe('en');
 
+  // The brain_janitor half needs the private hermes-setup repo next to this one.
+  const hermes = process.env.HERMES_SCRIPTS ?? path.resolve('../hermes-setup/profiles/brain_janitor/scripts');
+  test.skip(!existsSync(hermes), `brain_janitor scripts not found at ${hermes}`);
   const report = JSON.parse(
     execFileSync('python3', ['e2e/hermes_e2e.py', KK, KEY, 'KsTestOpen1'], { encoding: 'utf8' }) as string,
   );
