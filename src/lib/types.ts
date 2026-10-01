@@ -88,6 +88,9 @@ export interface Settings {
   apiKey: string;
   /** Optional Jev key, stored locally only; empty disables classification. */
   jevApiKey: string;
+  /** Jev systemone endpoint (openjev, official Jev, OpenRouter, self-hosted) and the model it expects. */
+  jevEndpoint: string;
+  jevModel: string;
   /** Save the tab to Karakeep as soon as the popup opens. */
   autoSave: boolean;
   /** Attach a captured YouTube transcript to the bookmark without a click. */
@@ -106,6 +109,8 @@ export const DEFAULT_SETTINGS: Settings = {
   address: '',
   apiKey: '',
   jevApiKey: '',
+  jevEndpoint: 'https://api.openjev.sh/v1/systemone',
+  jevModel: 'openjev',
   autoSave: true,
   autoAttach: true,
   autoOpenTranscript: true,

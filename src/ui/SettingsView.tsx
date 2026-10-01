@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { browser } from 'wxt/browser';
 import { exchangeApiKey, KarakeepClient, normalizeAddress, originPattern } from '../lib/karakeep';
-import { JEV_PERMISSIONS } from '../lib/jev';
+import { jevPermissions, type JevConfig } from '../lib/jev';
 import { loadSettings, saveSettings } from '../lib/settings';
 import type { Settings } from '../lib/types';
 import { applyTheme, Banner, Button, Field, inputClass, Logo, Toggle } from './components';
@@ -105,7 +105,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
       </Section>
 
       <Section title="Jev">
-        <JevKey initialKey={settings.jevApiKey} onSave={(jevApiKey) => update({ jevApiKey })} />
+        <JevSettings initial={{ apiKey: settings.jevApiKey, endpoint: settings.jevEndpoint, model: settings.jevModel }} onSave={(c) => update({ jevApiKey: c.apiKey, jevEndpoint: c.endpoint, jevModel: c.model })} />
       </Section>
 
       <Section title="Theme">
@@ -246,30 +246,44 @@ function SignIn({ initialAddress, onSignedIn }: { initialAddress: string; onSign
   );
 }
 
-function JevKey({ initialKey, onSave }: { initialKey: string; onSave: (key: string) => Promise<void> }) {
-  const [key, setKey] = useState(initialKey);
+function JevSettings({ initial, onSave }: { initial: JevConfig; onSave: (config: JevConfig) => Promise<void> }) {
+  const [key, setKey] = useState(initial.apiKey);
+  const [endpoint, setEndpoint] = useState(initial.endpoint);
+  const [model, setModel] = useState(initial.model);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
+    const config = { apiKey: key.trim(), endpoint: endpoint.trim(), model: model.trim() };
+    let permissions: ReturnType<typeof jevPermissions> | null = null;
+    if (config.apiKey) {
+      try { permissions = jevPermissions(config.endpoint); } catch { return setError('Use an HTTPS endpoint (or local HTTP).'); }
+      if (!config.model) return setError('Enter the model name the endpoint expects.');
+    }
     setBusy(true);
     try {
       // Request directly in the submit gesture, before storage awaits.
-      if (key.trim() && !(await browser.permissions.request(JEV_PERMISSIONS))) {
-        setError('Keepsake needs permission to reach Jev.');
+      if (permissions && !(await browser.permissions.request(permissions))) {
+        setError('Keepsake needs permission to reach the Jev endpoint.');
         return;
       }
-      await onSave(key.trim());
+      await onSave(config);
     } catch { setError('Could not save Jev settings.'); }
     finally { setBusy(false); }
   };
   return (
     <form onSubmit={submit} className="space-y-2">
-      <Field label="Jev API key" hint="Empty = off. When set, the page text/transcript of saved bookmarks is sent to api.openjev.sh for classification. The key stays in local browser storage.">
+      <Field label="Jev API key" hint="Empty = off. When set, the page text/transcript of saved bookmarks is sent to the endpoint below for classification. The key stays in local browser storage.">
         <input className={inputClass} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} />
       </Field>
-      <Button type="submit" busy={busy}>Save Jev key</Button>
+      <Field label="Endpoint" hint="Any Jev systemone endpoint: openjev, the official Jev API, OpenRouter or self-hosted.">
+        <input className={inputClass} type="url" inputMode="url" autoComplete="off" spellCheck={false} value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
+      </Field>
+      <Field label="Model">
+        <input className={inputClass} autoComplete="off" spellCheck={false} value={model} onChange={(e) => setModel(e.target.value)} />
+      </Field>
+      <Button type="submit" busy={busy}>Save Jev settings</Button>
       {error && <Banner tone="warning" title={error} />}
     </form>
   );

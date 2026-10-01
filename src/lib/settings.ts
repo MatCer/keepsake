@@ -8,7 +8,7 @@ export { DEFAULT_SETTINGS };
 function validPatch(value: unknown): Partial<Settings> {
   if (!isRecord(value)) return {};
   const patch: Partial<Settings> = {};
-  for (const key of ['address', 'apiKey', 'jevApiKey', 'obsidianVault', 'obsidianFolder', 'transcriptTag'] as const) if (typeof value[key] === 'string') patch[key] = value[key];
+  for (const key of ['address', 'apiKey', 'jevApiKey', 'jevEndpoint', 'jevModel', 'obsidianVault', 'obsidianFolder', 'transcriptTag'] as const) if (typeof value[key] === 'string') patch[key] = value[key];
   if (typeof value.autoSave === 'boolean') patch.autoSave = value.autoSave;
   if (typeof value.autoAttach === 'boolean') patch.autoAttach = value.autoAttach;
   if (typeof value.autoOpenTranscript === 'boolean') patch.autoOpenTranscript = value.autoOpenTranscript;

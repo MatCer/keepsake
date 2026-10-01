@@ -1,5 +1,7 @@
 import { expect, test, vi } from 'vitest';
-import { classify, plan, type Answers } from './jev';
+import { classify, jevPermissions, plan, type Answers } from './jev';
+
+const config = (apiKey: string) => ({ apiKey, endpoint: 'https://api.openjev.sh/v1/systemone', model: 'openjev' });
 
 const answers: Answers = {
   area: { choice: 'Tech', probabilities: { Tech: 0.8 } },
@@ -9,7 +11,7 @@ const answers: Answers = {
 const state = { title: 'Title', url: 'https://example.com', description: 'd'.repeat(700), page_text_start: 't'.repeat(4000) };
 test('request matches Jev contract, trims state and uses null topic criteria', async () => {
   const fetcher = vi.fn<typeof fetch>(async () => Response.json({ answers }));
-  expect(await classify('test-key', state, ['topic-ai'], { fetch: fetcher })).toEqual(answers);
+  expect(await classify(config('test-key'), state, ['topic-ai'], { fetch: fetcher })).toEqual(answers);
   const [url, init] = fetcher.mock.calls[0]!;
   expect(url).toBe('https://api.openjev.sh/v1/systemone');
   expect(init?.method).toBe('POST');
@@ -34,10 +36,19 @@ test('malformed and unoffered answers are rejected', async () => {
     { answers: { ...answers, topic: { choice: 'none', probabilities: { 'topic-unoffered': 1 } } } },
     { answers: { ...answers, topic: { choice: 'none', probabilities: { none: '1' } } } },
     { answers: { ...answers, topic: { choice: 'none', probabilities: { none: 1.1 } } } },
-  ]) await expect(classify('test-key', state, ['topic-ai'], { fetch: async () => Response.json(value) })).rejects.toThrow('Invalid Jev response');
+  ]) await expect(classify(config('test-key'), state, ['topic-ai'], { fetch: async () => Response.json(value) })).rejects.toThrow('Invalid Jev response');
 });
 test('HTTP, JSON and network failures never expose secrets or response bodies', async () => {
-  await expect(classify('secret', state, [], { fetch: async () => new Response('secret', { status: 401 }) })).rejects.toThrow('Jev request failed: 401');
-  await expect(classify('secret', state, [], { fetch: async () => new Response('secret') })).rejects.toThrow('Invalid Jev response');
-  await expect(classify('secret', state, [], { fetch: async () => { throw new Error('secret'); } })).rejects.toThrow('Jev request failed: network error');
+  await expect(classify(config('secret'), state, [], { fetch: async () => new Response('secret', { status: 401 }) })).rejects.toThrow('Jev request failed: 401');
+  await expect(classify(config('secret'), state, [], { fetch: async () => new Response('secret') })).rejects.toThrow('Invalid Jev response');
+  await expect(classify(config('secret'), state, [], { fetch: async () => { throw new Error('secret'); } })).rejects.toThrow('Jev request failed: network error');
+});
+test('endpoint and model are configurable; non-HTTPS endpoints are refused before sending', async () => {
+  const fetcher = vi.fn<typeof fetch>(async () => Response.json({ answers }));
+  await classify({ apiKey: 'k', endpoint: 'https://openrouter.ai/api/v1/systemone', model: 'jev/router' }, state, ['topic-ai'], { fetch: fetcher });
+  expect(fetcher.mock.calls[0]![0]).toBe('https://openrouter.ai/api/v1/systemone');
+  expect(JSON.parse(String(fetcher.mock.calls[0]![1]?.body)).model).toBe('jev/router');
+  await expect(classify({ apiKey: 'k', endpoint: 'http://jev.example.com/v1', model: 'm' }, state, [], { fetch: fetcher })).rejects.toThrow();
+  expect(fetcher).toHaveBeenCalledTimes(1);
+  expect(jevPermissions('https://jev.example.com/v1/systemone')).toEqual({ origins: ['https://jev.example.com/*'] });
 });

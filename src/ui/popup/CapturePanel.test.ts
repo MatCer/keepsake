@@ -4,12 +4,17 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import { capture } from '../../lib/__fixtures__/capture';
 import { DEFAULT_SETTINGS } from '../../lib/types';
 import { KarakeepClient, type Bookmark } from '../../lib/karakeep';
-import { JEV_PERMISSIONS } from '../../lib/jev';
+import { jevPermissions } from '../../lib/jev';
 import { CapturePanel } from './CapturePanel';
 
 const mocks = vi.hoisted(() => ({ contains: vi.fn(), request: vi.fn(), tag: vi.fn(), capture: vi.fn() }));
-vi.mock('wxt/browser', () => ({ browser: { permissions: { contains: mocks.contains, request: mocks.request } } }));
-vi.mock('../../lib/jev-tag', () => ({ jevTag: mocks.tag }));
+// The popup only messages the background worker; `tag` stands in for its jevTag run.
+vi.mock('wxt/browser', () => ({ browser: { permissions: { contains: mocks.contains, request: mocks.request }, runtime: {
+  sendMessage: async (message: unknown) => {
+    try { return { ok: true, outcome: await mocks.tag(message) }; } catch (e) { return { ok: false, message: (e as Error).message }; }
+  },
+} } }));
+const JEV_PERMISSIONS = jevPermissions(DEFAULT_SETTINGS.jevEndpoint);
 vi.mock('../run-capture', () => ({ runCapture: mocks.capture }));
 let root: Root;
 let host: HTMLDivElement;
@@ -32,6 +37,8 @@ test('classifies once under StrictMode and refreshes the bookmark', async () => 
   await render();
   expect(mocks.contains).toHaveBeenCalledWith(JEV_PERMISSIONS);
   expect(mocks.tag).toHaveBeenCalledTimes(1); expect(changed).toHaveBeenCalledTimes(1);
+  expect(mocks.tag.mock.calls[0]?.[0]).toMatchObject({ type: 'jev-tag', bookmarkId: 'bm' });
+  expect(JSON.stringify(mocks.tag.mock.calls[0]?.[0])).not.toContain('test-jev'); // keys stay in the background
   expect(host.textContent).toContain('Jev: Research > Tech · Library > Articles · topic-ai');
   await render(); expect(mocks.tag).toHaveBeenCalledTimes(1);
 });

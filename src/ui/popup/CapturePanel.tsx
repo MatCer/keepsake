@@ -1,10 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { attachTranscript, type AttachOutcome } from '../../lib/attach';
 import { noteFileName, obsidianUri, toJson, toMarkdown } from '../../lib/format';
 import type { Bookmark, KarakeepClient } from '../../lib/karakeep';
-import { JEV_PERMISSIONS } from '../../lib/jev';
-import { jevTag, type JevOutcome } from '../../lib/jev-tag';
+import { jevPermissions } from '../../lib/jev';
+import type { JevOutcome, JevReply } from '../../lib/jev-tag';
 import { addToOutbox } from '../../lib/outbox';
 import type { Capture, CaptureResult, Settings, YoutubeCapture } from '../../lib/types';
 import { formatTimestamp } from '../../lib/youtube';
@@ -94,7 +94,7 @@ export function CapturePanel({
       {capture ? (
         <>
           {client && bookmark && settings.jevApiKey && (
-            <JevTagging key={`${bookmark.id}:${capture.url}:${capture.kind === 'page' ? capture.page.sha256 : capture.transcript.sha256}`} client={client} bookmarkId={bookmark.id} capture={capture} apiKey={settings.jevApiKey} onBookmarkChanged={onBookmarkChanged} />
+            <JevTagging key={`${bookmark.id}:${capture.url}:${capture.kind === 'page' ? capture.page.sha256 : capture.transcript.sha256}`} bookmarkId={bookmark.id} capture={capture} endpoint={settings.jevEndpoint} onBookmarkChanged={onBookmarkChanged} />
           )}
           {capture.kind === 'youtube-transcript' && client && bookmark && (
             <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} address={settings.address} auto={settings.autoAttach} />
@@ -232,29 +232,34 @@ function AttachToKarakeep({
 
 
 type JevStatus = { phase: 'idle' | 'busy' } | { phase: 'done'; outcome: JevOutcome } | { phase: 'failed'; message: string };
-function JevTagging({ client, bookmarkId, capture, apiKey, onBookmarkChanged }: {
-  client: KarakeepClient; bookmarkId: string; capture: Capture; apiKey: string; onBookmarkChanged: () => Promise<void>;
+function JevTagging({ bookmarkId, capture, endpoint, onBookmarkChanged }: {
+  bookmarkId: string; capture: Capture; endpoint: string; onBookmarkChanged: () => Promise<void>;
 }) {
   const [granted, setGranted] = useState<boolean | null>(null);
   const [state, setState] = useState<JevStatus>({ phase: 'idle' });
   const ran = useRef(false);
+  const permissions = useMemo(() => { try { return jevPermissions(endpoint); } catch { return null; } }, [endpoint]);
   useEffect(() => {
-    browser.permissions.contains(JEV_PERMISSIONS).then(setGranted, () => setGranted(false));
-  }, []);
+    if (!permissions) return setState({ phase: 'failed', message: 'The Jev endpoint in settings is not an HTTPS URL' });
+    browser.permissions.contains(permissions).then(setGranted, () => setGranted(false));
+  }, [permissions]);
   useEffect(() => {
     if (!granted || ran.current) return;
     ran.current = true;
     setState({ phase: 'busy' });
     (async () => {
       try {
-        const outcome = await jevTag(client, bookmarkId, capture, apiKey);
+        // The background worker does the work, so it finishes even if the popup closes now.
+        const reply: JevReply = await browser.runtime.sendMessage({ type: 'jev-tag', bookmarkId, capture });
+        if (!reply.ok) throw new Error(reply.message);
+        const outcome = reply.outcome;
         setState({ phase: 'done', outcome });
         if (outcome.kind === 'tagged') await onBookmarkChanged();
       } catch (e) { setState({ phase: 'failed', message: e instanceof Error ? e.message : 'Jev classification failed' }); }
     })();
-  }, [granted, client, bookmarkId, capture, apiKey, onBookmarkChanged]);
-  if (granted === false) return <Button onClick={() => {
-    browser.permissions.request(JEV_PERMISSIONS).then(setGranted, () => setState({ phase: 'failed', message: 'Could not request Jev permission' }));
+  }, [granted, bookmarkId, capture, onBookmarkChanged]);
+  if (granted === false && permissions) return <Button onClick={() => {
+    browser.permissions.request(permissions).then(setGranted, () => setState({ phase: 'failed', message: 'Could not request Jev permission' }));
   }}>Allow Jev</Button>;
   if (state.phase === 'busy') return <p role="status" className="flex items-center gap-2 text-[12px] text-zinc-500"><Spinner /> Classifying with Jev…</p>;
   if (state.phase === 'failed') return <Banner tone="warning" title="Jev classification failed">{state.message}</Banner>;

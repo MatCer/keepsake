@@ -1,10 +1,14 @@
 import { isRecord } from './capture-validation';
-import type { ClientOptions } from './karakeep';
+import { originPattern, type ClientOptions } from './karakeep';
 
-export const JEV_ORIGIN = 'https://api.openjev.sh/*';
-// Firefox also gates sending page content on the optional `websiteContent` data-collection consent.
-const firefoxPermissions = { origins: [JEV_ORIGIN], data_collection: ['websiteContent'] };
-export const JEV_PERMISSIONS = import.meta.env.FIREFOX ? firefoxPermissions : { origins: [JEV_ORIGIN] };
+/** Any service speaking the Jev systemone protocol: openjev, the official Jev API, OpenRouter, self-hosted. */
+export interface JevConfig { endpoint: string; model: string; apiKey: string }
+/** Throws on an endpoint that is not HTTPS (or local HTTP). */
+export function jevPermissions(endpoint: string) {
+  const origins = [originPattern(endpoint)];
+  // Firefox also gates sending page content on the optional `websiteContent` data-collection consent.
+  return import.meta.env.FIREFOX ? { origins, data_collection: ['websiteContent'] } : { origins };
+}
 export type JevOptions = Pick<ClientOptions, 'fetch' | 'timeoutMs'>;
 export interface JevState { title: string; url: string; description: string | null; page_text_start: string }
 interface Answer<T extends string> { choice: T; probabilities: Record<string, number> }
@@ -35,17 +39,18 @@ function answer<T extends string>(value: unknown, choices: T[]): Answer<T> {
   if (!(choice in probabilities)) return invalid();
   return { choice, probabilities };
 }
-export async function classify(key: string, state: JevState, topics: string[], opts: JevOptions = {}): Promise<Answers> {
+export async function classify(config: JevConfig, state: JevState, topics: string[], opts: JevOptions = {}): Promise<Answers> {
   const questions = {
     area: { type: 'choice', instructions: 'Which research area does this bookmark belong to?', criteria: areas },
     libtype: { type: 'choice', instructions: 'What kind of resource is this bookmark?', criteria: libtypes },
     topic: { type: 'choice', instructions: 'Which existing topic tag fits this bookmark best?', criteria: { ...Object.fromEntries(topics.map(t => [t, null])), none: 'no listed topic fits' } },
   };
+  jevPermissions(config.endpoint);
   let response: Response;
   try {
-    response = await (opts.fetch ?? globalThis.fetch)('https://api.openjev.sh/v1/systemone', {
-      method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ model: 'openjev', state: { ...state, description: (state.description ?? '').slice(0, 600), page_text_start: state.page_text_start.slice(0, 3000) }, questions }),
+    response = await (opts.fetch ?? globalThis.fetch)(config.endpoint, {
+      method: 'POST', headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: config.model, state: { ...state, description: (state.description ?? '').slice(0, 600), page_text_start: state.page_text_start.slice(0, 3000) }, questions }),
       signal: AbortSignal.timeout(opts.timeoutMs ?? 30_000), redirect: 'error',
     });
   } catch { throw new Error('Jev request failed: network error'); }
