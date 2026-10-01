@@ -10,6 +10,7 @@ import { Icon } from '../../src/ui/icons';
 import { BookmarkCard } from '../../src/ui/popup/BookmarkPanel';
 import { CapturePanel } from '../../src/ui/popup/CapturePanel';
 import { ScrapedPanel } from '../../src/ui/popup/ScrapedPanel';
+import { SettingsView } from '../../src/ui/SettingsView';
 
 type Tab = { id: number; url: string; title: string };
 type BookmarkState =
@@ -25,12 +26,18 @@ export function App() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [tab, setTab] = useState<Tab | null>(null);
   const [granted, setGranted] = useState<boolean | null>(null);
+  const [editing, setEditing] = useState(false);
+  // Bumped when leaving the settings view, so the main view starts over with the new settings.
+  const [epoch, setEpoch] = useState(0);
 
   useEffect(() => {
     loadSettings().then((s) => {
       applyTheme(s.theme);
       setSettings(s);
     });
+  }, [epoch]);
+
+  useEffect(() => {
     // ?tabId= lets the e2e suite open the popup as a page aimed at another tab.
     const forced = Number(new URLSearchParams(location.search).get('tabId'));
     (forced ? browser.tabs.get(forced) : browser.tabs.query({ active: true, currentWindow: true }).then(([t]) => t)).then(
@@ -51,9 +58,22 @@ export function App() {
     [configured, granted, settings],
   );
 
+  const toggleSettings = () => {
+    if (editing) setEpoch((n) => n + 1);
+    setEditing(!editing);
+  };
+
+  if (editing) {
+    return (
+      <Shell editing onToggleSettings={toggleSettings}>
+        <SettingsView embedded />
+      </Shell>
+    );
+  }
+
   if (!settings || !tab) {
     return (
-      <Shell>
+      <Shell editing={false} onToggleSettings={toggleSettings}>
         <p className="flex items-center gap-2 py-8 text-zinc-500">
           <Spinner /> Loading…
         </p>
@@ -62,11 +82,11 @@ export function App() {
   }
 
   return (
-    <Shell>
+    <Shell editing={false} onToggleSettings={toggleSettings}>
       {!configured ? (
         <Banner tone="info" title="Connect your Karakeep">
           <p>Add your server address and sign in to save pages. Capturing Markdown and transcripts works without it.</p>
-          <Button variant="primary" className="mt-2" onClick={() => browser.runtime.openOptionsPage()}>
+          <Button variant="primary" className="mt-2" onClick={toggleSettings}>
             Open settings
           </Button>
         </Banner>
@@ -82,21 +102,37 @@ export function App() {
           </Button>
         </Banner>
       ) : null}
-      <Main tab={tab} settings={settings} client={client} />
+      <Main key={epoch} tab={tab} settings={settings} client={client} />
     </Shell>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+function Shell({ children, editing, onToggleSettings }: { children: React.ReactNode; editing: boolean; onToggleSettings: () => void }) {
   return (
     <div className="w-[400px]">
       <header className="flex h-11 items-center justify-between border-b border-zinc-200 px-3 dark:border-zinc-800">
         <span className="flex items-center gap-2 font-semibold">
-          <Logo /> Keepsake
+          {editing ? (
+            <Button variant="ghost" className="-ml-2 !px-2" aria-label="Back" onClick={onToggleSettings}>
+              <Icon name="back" />
+            </Button>
+          ) : (
+            <Logo />
+          )}
+          {editing ? 'Settings' : 'Keepsake'}
         </span>
-        <Button variant="ghost" className="!px-2" aria-label="Settings" onClick={() => browser.runtime.openOptionsPage()}>
-          <Icon name="gear" />
-        </Button>
+        <span className="flex">
+          {editing && (
+            <Button variant="ghost" className="!px-2" aria-label="Open settings in a tab" title="Open in a tab" onClick={() => browser.runtime.openOptionsPage()}>
+              <Icon name="external" />
+            </Button>
+          )}
+          {!editing && (
+            <Button variant="ghost" className="!px-2" aria-label="Settings" onClick={onToggleSettings}>
+              <Icon name="gear" />
+            </Button>
+          )}
+        </span>
       </header>
       <main className="max-h-[540px] space-y-4 overflow-y-auto p-3">{children}</main>
     </div>
