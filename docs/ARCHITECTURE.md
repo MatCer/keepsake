@@ -9,7 +9,11 @@ toolbar button opens the popup, which:
 2. captures the page as Markdown (Defuddle, the engine behind Obsidian Web Clipper)
    or, on a YouTube watch/shorts/live page, the **transcript already rendered in the
    page**, and lets you copy it, download it, attach it to the bookmark or open it in
-   Obsidian.
+   Obsidian;
+3. optionally asks the background worker to classify the bookmark with Jev and apply
+   lists and a topic tag.
+
+Why it exists: [MOTIVATION.md](MOTIVATION.md).
 
 ## Hard rules
 
@@ -65,7 +69,7 @@ Idempotency: before uploading, the popup reads `bookmark.assets[].fileName`.
 
 | file | responsibility |
 |---|---|
-| `types.ts` | shared contract (done) |
+| `types.ts` | shared types, settings defaults and size `LIMITS` |
 | `youtube.ts` | `videoIdFromUrl(url)`, `isYoutubeVideoUrl`, `canonicalVideoUrl(id)`, `parseTimestamp("1:02:03")→3723`, `formatTimestamp(3723)→"1:02:03"`, `readTranscript(doc, player, url)→CaptureResult` |
 | `page.ts` | `capturePage(doc, url)→CaptureResult` via `defuddle/full` (`useAsync:false`, Markdown) |
 | `format.ts` | `toMarkdown(capture)`, `toJson(capture)`, `toTranscriptAssetHtml(capture)`, `toPageAssetHtml(capture)`, `pageAssetFileName(capture)`, `parseTranscriptAssetHtml(html)`, `assetFileName(capture)`, `noteFileName(capture)`; YAML/Markdown/HTML escaping |
@@ -110,19 +114,30 @@ open popup ─► settings ok? ─no─► "Connect Karakeep" (options)
    ├─► auto-save on? POST /bookmarks (idempotent) : GET /bookmarks/check-url → "Save" button
    ├─► bookmark card: title, tags (add/remove, suggestions), lists (toggle), note (explicit save)
    ├─► tab "Capture": run injected capture → state banner → Copy MD / Download MD|JSON / Attach / Obsidian
+   │                   └─► Jev configured + permission? message background worker → page asset, Jev, lists/tags
    └─► tab "Scraped": sandboxed iframe (srcdoc, CSP default-src 'none') of content.htmlContent
 ```
 
-Failed Karakeep writes retry 3× with backoff (0.5 s, 1.5 s, 4 s; only network errors,
-429 and 5xx), then the capture goes to the outbox with a visible "Retry" and is never
-dropped silently.
+Karakeep requests retry 3× with backoff (0.5 s, then 1.5 s; only network errors,
+429 and 5xx). Uploads and attaches are tried once, and the attach flow re-checks the
+bookmark before trying again. A failed transcript upload goes to the outbox with a visible
+"Retry" and is never dropped silently.
 
-## Server side: brain_janitor
+## Server side: Hermes
 
-Karakeep is the only place transcripts live. A video's transcript is the
+Karakeep is the only place transcripts and page Markdown live. A video's transcript is the
 `keepsake-transcript-*.html` attachment on its link bookmark, whether the browser
-extension uploaded it (`provenance: browser-dom`) or brain_janitor's paced API fallback
-did (`provenance: youtube-api`). The brain_janitor scripts that read, prefetch and gate on
-these attachments live in the private `MatCer/hermes-setup` repo
-(`profiles/brain_janitor/scripts`); `e2e/hermes_e2e.py` runs them against the local
-Karakeep when that repo is checked out next to this one (or `HERMES_SCRIPTS` points to it).
+extension uploaded it (`provenance: browser-dom`) or Hermes' paced API fallback did
+(`provenance: youtube-api`).
+
+A Hermes agent triages new bookmarks on a schedule. Its pre-run gate:
+
+- skips its own Jev call for bookmarks Keepsake already tagged `jev-tagged`;
+- gives other new bookmarks 3 minutes for Keepsake to finish first;
+- holds untagged videos until their transcript is attached (at most 2 hours), so Jev never
+  classifies YouTube's page chrome;
+- otherwise runs Jev itself on the page asset, then the transcript, then Karakeep's scraped HTML.
+
+The Hermes scripts live in the private `MatCer/hermes-setup` repo; `e2e/hermes_e2e.py`
+runs them against the local Karakeep when that repo is checked out next to this one (or
+`HERMES_SCRIPTS` points to its scripts directory).
