@@ -86,6 +86,8 @@ export interface Settings {
   address: string;
   /** Stored in chrome.storage.local only. Never synced or exported. */
   apiKey: string;
+  /** Optional Jev key, stored locally only; empty disables classification. */
+  jevApiKey: string;
   /** Save the tab to Karakeep as soon as the popup opens. */
   autoSave: boolean;
   /** Attach a captured YouTube transcript to the bookmark without a click. */
@@ -103,6 +105,7 @@ export interface Settings {
 export const DEFAULT_SETTINGS: Settings = {
   address: '',
   apiKey: '',
+  jevApiKey: '',
   autoSave: true,
   autoAttach: true,
   autoOpenTranscript: true,

@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { browser } from 'wxt/browser';
 import { exchangeApiKey, KarakeepClient, normalizeAddress, originPattern } from '../lib/karakeep';
+import { JEV_PERMISSIONS } from '../lib/jev';
 import { loadSettings, saveSettings } from '../lib/settings';
 import type { Settings } from '../lib/types';
 import { applyTheme, Banner, Button, Field, inputClass, Logo, Toggle } from './components';
@@ -103,6 +104,10 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
         </Field>
       </Section>
 
+      <Section title="Jev">
+        <JevKey initialKey={settings.jevApiKey} onSave={(jevApiKey) => update({ jevApiKey })} />
+      </Section>
+
       <Section title="Theme">
         <div role="radiogroup" aria-label="Theme" className="flex gap-1 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-900">
           {(['system', 'light', 'dark'] as const).map((t) => (
@@ -142,7 +147,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
 
       <p className="text-[12px] leading-relaxed text-zinc-500">
         Keepsake reads pages only when you open it. On YouTube it reads the transcript already shown on the page and never
-        requests captions itself. The only server it talks to is your Karakeep.
+        requests captions itself. It talks to your Karakeep and, when enabled, api.openjev.sh for classification.
       </p>
       <p className="text-[12px] text-zinc-500">Version {browser.runtime.getManifest().version}</p>
     </div>
@@ -237,6 +242,35 @@ function SignIn({ initialAddress, onSignedIn }: { initialAddress: string; onSign
         Sign in
       </Button>
       <p className="text-[12px] text-zinc-500">The key is stored only in this browser profile and is never synced or exported.</p>
+    </form>
+  );
+}
+
+function JevKey({ initialKey, onSave }: { initialKey: string; onSave: (key: string) => Promise<void> }) {
+  const [key, setKey] = useState(initialKey);
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      // Request directly in the submit gesture, before storage awaits.
+      if (key.trim() && !(await browser.permissions.request(JEV_PERMISSIONS))) {
+        setError('Keepsake needs permission to reach Jev.');
+        return;
+      }
+      await onSave(key.trim());
+    } catch { setError('Could not save Jev settings.'); }
+    finally { setBusy(false); }
+  };
+  return (
+    <form onSubmit={submit} className="space-y-2">
+      <Field label="Jev API key" hint="Empty = off. When set, the page text/transcript of saved bookmarks is sent to api.openjev.sh for classification. The key stays in local browser storage.">
+        <input className={inputClass} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} />
+      </Field>
+      <Button type="submit" busy={busy}>Save Jev key</Button>
+      {error && <Banner tone="warning" title={error} />}
     </form>
   );
 }

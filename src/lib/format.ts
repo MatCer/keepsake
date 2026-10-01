@@ -1,4 +1,4 @@
-import { type Capture, type YoutubeCapture } from './types';
+import { type Capture, type PageCapture, type YoutubeCapture } from './types';
 import { canonicalVideoUrl, formatTimestamp } from './youtube';
 import { isYoutubeCapture } from './capture-validation';
 
@@ -54,6 +54,13 @@ export function parseAssetFileName(name: string): { videoId: string; language: s
 }
 function html(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+export function pageAssetFileName(capture: PageCapture): string {
+  return `keepsake-page-${capture.page.sha256.slice(0, 12)}.html`;
+}
+export function toPageAssetHtml(capture: PageCapture): string {
+  const record = JSON.stringify(capture).replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, '0')}`);
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="keepsake-schema" content="keepsake.capture/v1"><title>Page: ${html(capture.title)}</title></head><body><pre>${html(toMarkdown(capture))}</pre><script type="application/json" id="keepsake-capture">${record}</script></body></html>`;
 }
 export function toTranscriptAssetHtml(capture: YoutubeCapture): string {
   const source = html(canonicalVideoUrl(capture.video.id));

@@ -17,7 +17,7 @@ export default defineConfig({
     description:
       'Save pages to Karakeep, edit tags, lists and notes, read the scraped copy, and capture page Markdown or an already-open YouTube transcript.',
     permissions: ['activeTab', 'scripting', 'storage'],
-    // Only the Karakeep origin the user configures is requested at runtime.
+    // Karakeep and optional Jev access are requested at runtime.
     optional_host_permissions: ['https://*/*', 'http://*/*'],
     ...(e2e ? { host_permissions: ['<all_urls>'], key: E2E_KEY } : {}),
     action: { default_title: 'Keepsake' },
@@ -26,8 +26,8 @@ export default defineConfig({
         id: 'keepsake@matcer.github.io',
         // Self-distributed: .github/workflows/release-firefox.yml publishes this file with each signed build.
         update_url: 'https://github.com/MatCer/keepsake/releases/latest/download/updates.json',
-        // Nothing goes to the developer; requests only reach the user's own Karakeep.
-        data_collection_permissions: { required: ['none'] },
+        // Nothing goes to the developer; requests reach the user's Karakeep and optional Jev API.
+        data_collection_permissions: { required: ['none'], optional: ['websiteContent'] },
       },
     },
   },

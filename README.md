@@ -16,6 +16,12 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
   after the capture. With the setting off,
   it asks you to open the panel and retry.
 
+With a Jev API key and host permission, Keepsake sends the title, URL, description (up to 600 characters)
+and page text/transcript (up to 3,000 characters) to `api.openjev.sh` on save or open.
+It applies research/library lists and a topic tag directly to Karakeep, then marks
+`jev-tagged`; bookmarks already `jev-tagged` or `janitor-processed` are skipped.
+Page Markdown is also attached as `keepsake-page-<hash>.html`. Jev is off by default.
+
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
 to the Karakeep bookmark. Karakeep is the single store for transcripts: the brain_janitor
 jobs read them from there and upload their own API fallback there too (their setup lives
@@ -61,6 +67,7 @@ Click the gear in the popup (or the extension's Options):
 | Auto-save on open | On: the tab is saved when the popup opens. Off: you confirm before saving. |
 | Auto-attach transcripts | On (default): a captured YouTube transcript is attached to the bookmark when the popup opens. Replacing a different transcript still asks first. Off: click **Attach**. |
 | Tag transcripts | Optional tag added when a transcript is attached. |
+| Jev API key | Empty = off. Stored locally only. Save requests permission for `https://api.openjev.sh/*`; when enabled, saved bookmarks are classified using page text/transcripts. |
 | Theme | System, light or dark. |
 | Obsidian vault / folder | Shows an **Obsidian** button that copies the Markdown and opens `obsidian://new…&clipboard`, the same way Obsidian Web Clipper does. |
 
@@ -92,7 +99,7 @@ tags, metadata and scraped content stay unchanged. Karakeep serves the file with
 
 ## Permissions
 
-`activeTab`, `scripting`, `storage`, plus runtime access to your Karakeep origin only.
+`activeTab`, `scripting`, `storage`, plus runtime access to your Karakeep origin and, optionally, `api.openjev.sh`.
 There are no content scripts, no background polling, and no access to cookies, history
 or other tabs. Page reading happens only when you open the popup.
 
@@ -122,8 +129,8 @@ YouTube URLs never contacts YouTube.
 
 - **Extension:** remove or disable it in `chrome://extensions` / `about:addons`. It stores
   nothing outside its own extension storage.
-- **Karakeep:** Keepsake only adds attachments named `keepsake-transcript-*.html` (and the
-  optional transcript tag). Delete them from the bookmark's Attachments. Bookmarks it
+- **Karakeep:** Delete `keepsake-transcript-*.html` and `keepsake-page-*.html` from
+  Attachments as needed. Remove optional transcript/Jev tags and Jev list memberships manually. Bookmarks it
   created are ordinary link bookmarks.
 - **brain_janitor:** see the rollback notes in the `MatCer/hermes-setup` repo. Attachments
   stay in Karakeep and are harmless.
