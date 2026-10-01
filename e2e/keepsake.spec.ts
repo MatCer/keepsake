@@ -236,3 +236,49 @@ test('auto-attach: opening the popup attaches the transcript once, no click', as
   await setAuto(false);
   await yt.close();
 });
+
+test('list picker and tag suggestions float over the content instead of pushing it down', async () => {
+  const names = ['Research', 'Library', 'Entertainment', 'Tech', 'Business', 'Ideas', 'Reading', 'Later'];
+  const existing = new Set(((await api('GET', '/lists')).lists as { name: string }[]).map((l) => l.name));
+  for (const name of names) if (!existing.has(name)) await api('POST', '/lists', { name, icon: '📁' });
+  // Tags exist in Karakeep once any bookmark carries them.
+  const holder = await api('POST', '/bookmarks', { type: 'link', url: 'https://example.org/tag-holder' });
+  await api('POST', `/bookmarks/${holder.id}/tags`, { tags: ['reading', 'react', 'research'].map((tagName) => ({ tagName })) });
+
+  const page = await ctx.newPage();
+  await page.goto('https://example.org/article');
+  const popup = await openPopup('example.org/article');
+  const note = popup.getByLabel('Note');
+  await expect(note).toBeVisible();
+  const before = await note.boundingBox();
+  const shell = popup.locator('div.w-\\[400px\\]');
+  await popup.evaluate(() => document.documentElement.classList.add('dark'));
+
+  await popup.getByRole('button', { name: 'Add to list…' }).click();
+  const lists = popup.getByRole('dialog', { name: 'Lists' });
+  await expect(lists).toBeVisible();
+  expect(await note.boundingBox()).toEqual(before);
+  await shell.screenshot({ path: 'test-results/popup-lists.png' });
+  await lists.getByLabel('Library').check();
+  await popup.keyboard.press('Escape');
+  await expect(lists).toBeHidden();
+  await expect(popup.getByRole('button', { name: /Library/ })).toBeVisible();
+
+  const input = popup.getByRole('combobox', { name: 'Add tag' });
+  await input.fill('rea');
+  const options = popup.getByRole('listbox', { name: 'Tag suggestions' }).getByRole('option');
+  await expect(options).toHaveText(['react', 'reading', 'Createrea']);
+  expect(await note.boundingBox()).toEqual(before);
+  await shell.screenshot({ path: 'test-results/popup-tags.png' });
+  await input.press('ArrowDown');
+  await input.press('Enter');
+  await expect(popup.getByRole('button', { name: 'Remove tag reading' })).toBeVisible();
+  await input.fill('brand-new');
+  await input.press(',');
+  await expect(popup.getByRole('button', { name: 'Remove tag brand-new' })).toBeVisible();
+
+  const { bookmarkId } = await api('GET', `/bookmarks/check-url?url=${encodeURIComponent('https://example.org/article')}`);
+  expect(((await api('GET', `/bookmarks/${bookmarkId}/lists`)).lists as { name: string }[]).map((l) => l.name)).toEqual(['Library']);
+  await popup.close();
+  await page.close();
+});

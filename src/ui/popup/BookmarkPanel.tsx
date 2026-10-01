@@ -1,6 +1,6 @@
-import { useEffect, useState, type KeyboardEvent } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import type { Bookmark, KarakeepClient, List, Tag } from '../../lib/karakeep';
-import { Banner, Button, inputClass } from '../components';
+import { Banner, Button, inputClass, popoverClass, useDismiss } from '../components';
 import { Icon } from '../icons';
 
 export function BookmarkCard({
@@ -111,52 +111,141 @@ function TagEditor({
 }) {
   const [all, setAll] = useState<Tag[]>([]);
   const [value, setValue] = useState('');
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const box = useRef<HTMLDivElement>(null);
+  useDismiss(box, open, () => setOpen(false));
   useEffect(() => {
     client.allTags().then(setAll, () => setAll([]));
   }, [client]);
-  const add = (e: KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter' && e.key !== ',') return;
-    e.preventDefault();
-    const name = value.trim();
-    if (!name) return;
+
+  const own = new Set(bookmark.tags.map((t) => t.name.toLowerCase()));
+  const query = value.trim();
+  const q = query.toLowerCase();
+  const matches = all
+    .filter((t) => !own.has(t.name.toLowerCase()) && t.name.toLowerCase().includes(q))
+    // Prefix matches first, then alphabetical.
+    .sort((a, b) => Number(!a.name.toLowerCase().startsWith(q)) - Number(!b.name.toLowerCase().startsWith(q)) || a.name.localeCompare(b.name))
+    .slice(0, 8)
+    .map((t) => t.name);
+  const exists = all.some((t) => t.name.toLowerCase() === q) || own.has(q);
+  const options = query && !exists ? [...matches, query] : matches;
+  const showMenu = open && options.length > 0;
+
+  const add = (name: string) => {
     setValue('');
+    setActive(0);
     void act(() => client.attachTags(bookmark.id, [name]))();
   };
-  const own = new Set(bookmark.tags.map((t) => t.name));
+  const onKey = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault();
+      setOpen(true);
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActive((i) => (options.length ? (i + step + options.length) % options.length : 0));
+    } else if (e.key === 'Enter' || (e.key === 'Tab' && query)) {
+      // Enter/Tab take the highlighted suggestion; a comma always takes the typed text as is.
+      const pick = showMenu ? options[active] : query;
+      if (!pick) return;
+      e.preventDefault();
+      add(pick);
+    } else if (e.key === ',') {
+      e.preventDefault();
+      if (query) add(query);
+    } else if (e.key === 'Tab') {
+      setOpen(false);
+    } else if (e.key === 'Backspace' && !value && bookmark.tags.length) {
+      const last = bookmark.tags.at(-1)!;
+      void act(() => client.detachTags(bookmark.id, [last.id]))();
+    }
+  };
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {bookmark.tags.map((t) => (
-        <span
-          key={t.id}
-          className="inline-flex h-6 items-center gap-1 rounded-md bg-accent-soft pr-1 pl-2 text-[12px] text-accent dark:text-violet-200"
-        >
-          {t.name}
-          <button
-            type="button"
-            aria-label={`Remove tag ${t.name}`}
-            className="rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
-            onClick={act(() => client.detachTags(bookmark.id, [t.id]))}
+    <div ref={box} className="relative">
+      <div className="flex min-h-8 flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-white px-1 py-0.5 focus-within:border-accent dark:border-zinc-800 dark:bg-zinc-900">
+        {bookmark.tags.map((t) => (
+          <span
+            key={t.id}
+            className="inline-flex h-6 items-center gap-1 rounded-md bg-accent-soft pr-1 pl-2 text-[12px] text-accent dark:text-violet-200"
           >
-            <Icon name="x" className="size-3" />
-          </button>
-        </span>
-      ))}
-      <input
-        aria-label="Add tag"
-        placeholder="Add tag…"
-        list="keepsake-tags"
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        onKeyDown={add}
-        className="h-6 min-w-24 flex-1 bg-transparent text-[12px] placeholder:text-zinc-400 focus:outline-none"
-      />
-      <datalist id="keepsake-tags">
-        {all.filter((t) => !own.has(t.name)).map((t) => (
-          <option key={t.id} value={t.name} />
+            {t.name}
+            <button
+              type="button"
+              aria-label={`Remove tag ${t.name}`}
+              className="rounded p-0.5 hover:bg-black/10 dark:hover:bg-white/10"
+              onClick={act(() => client.detachTags(bookmark.id, [t.id]))}
+            >
+              <Icon name="x" className="size-3" />
+            </button>
+          </span>
         ))}
-      </datalist>
+        <input
+          role="combobox"
+          aria-label="Add tag"
+          aria-expanded={showMenu}
+          aria-controls="keepsake-tag-options"
+          aria-activedescendant={showMenu ? `keepsake-tag-${active}` : undefined}
+          aria-autocomplete="list"
+          placeholder="Add tag…"
+          value={value}
+          onChange={(e) => {
+            setValue(e.target.value);
+            setActive(0);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          onKeyDown={onKey}
+          className="h-6 min-w-24 flex-1 bg-transparent px-1.5 text-[12px] placeholder:text-zinc-400 focus:outline-none"
+        />
+      </div>
+      {showMenu && (
+        <ul id="keepsake-tag-options" role="listbox" aria-label="Tag suggestions" className={`${popoverClass} max-h-56 overflow-y-auto p-1`}>
+          {options.map((name, i) => {
+            const create = i === matches.length;
+            return (
+              <li
+                key={create ? '\0create' : name}
+                id={`keepsake-tag-${i}`}
+                role="option"
+                aria-selected={i === active}
+                // mousedown, not click: keep focus in the input so typing can continue.
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  add(name);
+                }}
+                onMouseEnter={() => setActive(i)}
+                className={`flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[12px] ${
+                  i === active ? 'bg-zinc-100 dark:bg-zinc-800' : ''
+                }`}
+              >
+                {create ? (
+                  <>
+                    <span className="text-zinc-500">Create</span>
+                    <span className="truncate rounded bg-accent-soft px-1.5 text-accent dark:text-violet-200">{name}</span>
+                  </>
+                ) : (
+                  <span className="truncate">
+                    <Highlight text={name} query={q} />
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
+  );
+}
+
+function Highlight({ text, query }: { text: string; query: string }) {
+  const at = query ? text.toLowerCase().indexOf(query) : -1;
+  if (at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <mark className="bg-transparent font-semibold text-accent dark:text-violet-300">{text.slice(at, at + query.length)}</mark>
+      {text.slice(at + query.length)}
+    </>
   );
 }
 
@@ -164,6 +253,10 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
   const [lists, setLists] = useState<List[] | null>(null);
   const [member, setMember] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [filter, setFilter] = useState('');
+  const box = useRef<HTMLDivElement>(null);
+  useDismiss(box, open, () => setOpen(false));
   useEffect(() => {
     Promise.all([client.lists(), client.bookmarkLists(bookmarkId)]).then(
       ([all, mine]) => {
@@ -188,31 +281,64 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
       setError(true);
     }
   };
-  const names = lists.filter((l) => member.has(l.id)).map((l) => `${l.icon} ${l.name}`);
+  const chosen = lists.filter((l) => member.has(l.id));
+  const f = filter.trim().toLowerCase();
+  const shown = lists.filter((l) => l.name.toLowerCase().includes(f));
 
   return (
-    <details className="group rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <summary className="flex h-8 cursor-pointer list-none items-center justify-between px-2.5 text-[12px]">
-        <span className="truncate">{names.length ? names.join(', ') : <span className="text-zinc-500">Add to list…</span>}</span>
-        <span className="text-zinc-400 group-open:rotate-180">▾</span>
-      </summary>
-      <ul className="max-h-40 overflow-y-auto border-t border-zinc-200 p-1 dark:border-zinc-800">
-        {lists.map((l) => (
-          <li key={l.id}>
-            <label className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-              <input
-                type="checkbox"
-                checked={member.has(l.id)}
-                onChange={(e) => toggle(l.id, e.target.checked)}
-                className="accent-accent"
-              />
-              <span>{l.icon}</span>
-              <span className="truncate">{l.name}</span>
-            </label>
-          </li>
-        ))}
-      </ul>
-    </details>
+    <div ref={box} className="relative">
+      <button
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className={`${inputClass} flex items-center justify-between gap-2 text-left text-[12px]`}
+      >
+        <span className="flex min-w-0 flex-1 gap-1 overflow-hidden">
+          {chosen.length ? (
+            chosen.map((l) => (
+              <span key={l.id} className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 dark:bg-zinc-800">
+                {l.icon} {l.name}
+              </span>
+            ))
+          ) : (
+            <span className="text-zinc-500">Add to list…</span>
+          )}
+        </span>
+        <span aria-hidden className={`text-zinc-400 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+      {open && (
+        <div role="dialog" aria-label="Lists" className={popoverClass}>
+          {lists.length > 6 && (
+            <input
+              autoFocus
+              aria-label="Filter lists"
+              placeholder="Filter lists…"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="h-8 w-full border-b border-zinc-200 bg-transparent px-2.5 text-[12px] placeholder:text-zinc-400 focus:outline-none dark:border-zinc-800"
+            />
+          )}
+          <ul className="max-h-56 overflow-y-auto p-1">
+            {shown.map((l) => (
+              <li key={l.id}>
+                <label className="flex h-7 cursor-pointer items-center gap-2 rounded-md px-2 text-[12px] hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                  <input
+                    type="checkbox"
+                    checked={member.has(l.id)}
+                    onChange={(e) => toggle(l.id, e.target.checked)}
+                    className="accent-accent"
+                  />
+                  <span aria-hidden>{l.icon}</span>
+                  <span className="truncate">{l.name}</span>
+                </label>
+              </li>
+            ))}
+            {!shown.length && <li className="px-2 py-1.5 text-[12px] text-zinc-500">No list matches.</li>}
+          </ul>
+        </div>
+      )}
+    </div>
   );
 }
 
