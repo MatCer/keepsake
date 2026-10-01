@@ -14,9 +14,12 @@ toolbar button opens the popup, which:
 ## Hard rules
 
 - **Zero YouTube requests from the extension.** YouTube capture reads the DOM and the
-  player object that is already in memory. No `fetch`, no XHR, no clicking the
-  transcript button, no extra tab, no timedtext/innertube/API fallback. If the panel is
-  not open, the popup says so and asks the user to open it and retry.
+  player object that is already in memory. No `fetch`, no XHR, no extra tab, no
+  timedtext/innertube/API fallback. If the panel is closed and *Open YouTube transcript
+  automatically* is on (default), capture clicks YouTube's own **Show transcript** button
+  and waits up to 10 s for the segments; YouTube's page then sends the same single
+  `youtubei/v1/get_panel` request a manual click sends. With the setting off, the popup asks
+  the user to open the panel and retry.
 - Capture runs only after a click (`activeTab` + `scripting`). No content scripts are
   registered, no polling, no host permission at install time.
 - The only network destination is the Karakeep origin the user configured. Its host

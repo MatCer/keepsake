@@ -88,6 +88,30 @@ export async function readTranscript(doc: Document, url: string, player: PlayerS
 }
 
 /** Serialized into MAIN world: all runtime dependencies must stay inside this function. */
+/**
+ * readTranscript, but when the panel is closed and `open` is set, clicks YouTube's own
+ * "Show transcript" button first. YouTube then loads the transcript exactly as after a manual
+ * click (one request from the page itself); Keepsake still fetches nothing. Waits up to 10 s.
+ */
+export async function readOrOpenTranscript(doc: Document, url: string, player: PlayerSnapshot | null, now: Date, open: boolean, sleep = (ms: number) => new Promise<void>(resolve => setTimeout(resolve, ms))): Promise<CaptureResult> {
+  let result = await readTranscript(doc, url, player, now);
+  if (!open || result.status !== 'panel-not-loaded') return result;
+  const button = doc.querySelector<HTMLElement>('ytd-video-description-transcript-section-renderer button');
+  if (!button) return result;
+  button.click();
+  let seen = -1;
+  for (let waited = 0; waited < 10_000; waited += 250) {
+    await sleep(250);
+    result = await readTranscript(doc, url, player, now);
+    if (result.status !== 'panel-not-loaded' && result.status !== 'captured') return result;
+    const count = result.status === 'captured' && result.capture.kind === 'youtube-transcript' ? result.capture.transcript.segments.length : -1;
+    // A long transcript may render in batches: done once two reads in a row agree.
+    if (count > 0 && count === seen) return result;
+    seen = count;
+  }
+  return result;
+}
+
 export function probePlayer(): PlayerSnapshot {
   interface PlayerElement extends Element { getPlayerResponse?: unknown }
   interface ResponseFields { videoDetails?: unknown; microformat?: unknown; captions?: unknown }

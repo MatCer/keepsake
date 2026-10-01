@@ -1,7 +1,7 @@
 import Defuddle, { createMarkdownContent } from 'defuddle/full';
 import { sha256Hex } from './hash';
 import { CAPTURE_SCHEMA, LIMITS, type CaptureResult, type PlayerSnapshot } from './types';
-import { isCapturableVideoUrl, isYoutubeHost, readTranscript } from './youtube';
+import { isCapturableVideoUrl, isYoutubeHost, readOrOpenTranscript, readTranscript } from './youtube';
 
 export async function capturePage(doc: Document, url: string, now: Date): Promise<CaptureResult> {
   try {
@@ -23,8 +23,8 @@ export async function capturePage(doc: Document, url: string, now: Date): Promis
   } catch { return { status: 'unsupported', reason: 'Could not read this page' }; }
 }
 
-export function captureDocument(doc: Document, url: string, player: PlayerSnapshot | null, now: Date): Promise<CaptureResult> {
-  if (isCapturableVideoUrl(url)) return readTranscript(doc, url, player, now);
+export function captureDocument(doc: Document, url: string, player: PlayerSnapshot | null, now: Date, openTranscript = false): Promise<CaptureResult> {
+  if (isCapturableVideoUrl(url)) return readOrOpenTranscript(doc, url, player, now, openTranscript);
   // Defuddle's YouTube extractor can fetch captions, so no YouTube page ever goes through it.
   if (isYoutubeHost(url)) return Promise.resolve({ status: 'unsupported', reason: 'On YouTube only watch, shorts and live pages can be captured' });
   return capturePage(doc, url, now);

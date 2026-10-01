@@ -3,7 +3,8 @@
   Static stand-in for https://www.youtube.com/watch?v=<id>, served by Playwright routing.
   Mirrors the element/class structure of YouTube's desktop transcript panel as observed on
   2026-09-30. All text is original test content. {{VIDEO_ID}} and {{PANEL}} are filled in by
-  the test: PANEL=open renders an expanded transcript, PANEL=closed renders none.
+  the test: PANEL=open renders an expanded transcript, PANEL=closed renders none until the
+  "Show transcript" button is clicked, which expands it like YouTube does (minus the request).
 -->
 <html lang="en">
   <head>
@@ -19,6 +20,13 @@
           <h1>Keepsake fixture video</h1>
           <ytd-channel-name><a href="/@fixture">Fixture Channel</a></ytd-channel-name>
         </ytd-watch-metadata>
+        <ytd-video-description-transcript-section-renderer>
+          <div id="button-container"><div id="primary-button"><ytd-button-renderer><yt-button-shape>
+            <button aria-label="Show transcript">Show transcript</button>
+          </yt-button-shape></ytd-button-renderer></div></div>
+        </ytd-video-description-transcript-section-renderer>
+        <template id="pending-1">{{PENDING_1}}</template>
+        <template id="pending-2">{{PENDING_2}}</template>
         <ytd-engagement-panel-section-list-renderer target-id="engagement-panel-searchable-transcript" visibility="ENGAGEMENT_PANEL_VISIBILITY_HIDDEN"></ytd-engagement-panel-section-list-renderer>
         <ytd-engagement-panel-section-list-renderer visibility="{{VISIBILITY}}">
           <div id="content">
@@ -45,6 +53,15 @@
       </ytd-watch-flexy>
     </ytd-app>
     <script>
+      document.querySelector('ytd-video-description-transcript-section-renderer button').addEventListener('click', () => {
+        setTimeout(() => {
+          const panel = document.querySelectorAll('ytd-engagement-panel-section-list-renderer')[1];
+          const lists = panel.querySelectorAll('#contents');
+          lists[0].replaceChildren(document.getElementById('pending-1').content.cloneNode(true));
+          lists[1].replaceChildren(document.getElementById('pending-2').content.cloneNode(true));
+          panel.setAttribute('visibility', 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED');
+        }, 300);
+      });
       document.getElementById('movie_player').getPlayerResponse = () => ({
         videoDetails: {
           videoId: '{{VIDEO_ID}}',

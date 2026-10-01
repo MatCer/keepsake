@@ -90,6 +90,8 @@ export interface Settings {
   autoSave: boolean;
   /** Attach a captured YouTube transcript to the bookmark without a click. */
   autoAttach: boolean;
+  /** Click YouTube's "Show transcript" button when the transcript panel is closed. */
+  autoOpenTranscript: boolean;
   theme: 'system' | 'light' | 'dark';
   /** Obsidian vault name for obsidian://new; empty disables the Obsidian button. */
   obsidianVault: string;
@@ -103,6 +105,7 @@ export const DEFAULT_SETTINGS: Settings = {
   apiKey: '',
   autoSave: true,
   autoAttach: true,
+  autoOpenTranscript: true,
   theme: 'system',
   obsidianVault: '',
   obsidianFolder: 'Clippings',
