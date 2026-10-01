@@ -34,7 +34,8 @@ export async function request(origin: string, path: string, template: string, me
       const response = await fetcher(`${origin}${path}`, { method, headers, body, signal: AbortSignal.timeout(opts.timeoutMs ?? 15000), redirect: 'error' });
       if (response.ok) {
         // Read under the same timeout/retry scope; a connection can fail after headers.
-        const data = response.body === null ? null : await response.arrayBuffer();
+        // A 204/205 Response must be built without a body; Firefox still hands back an empty stream.
+        const data = response.body === null || response.status === 204 || response.status === 205 ? null : await response.arrayBuffer();
         return new Response(data, { status: response.status, headers: response.headers });
       }
       failure = new KarakeepError(`${method} ${template} failed: ${response.status}`, response.status, response.status === 429 || response.status >= 500);

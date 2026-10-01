@@ -253,6 +253,7 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
   const [lists, setLists] = useState<List[] | null>(null);
   const [member, setMember] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
+  const [saveError, setSaveError] = useState(false);
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const box = useRef<HTMLDivElement>(null);
@@ -274,11 +275,12 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
     if (on) next.add(id);
     else next.delete(id);
     setMember(next);
+    setSaveError(false);
     try {
       await (on ? client.addToList(id, bookmarkId) : client.removeFromList(id, bookmarkId));
     } catch {
       setMember(member);
-      setError(true);
+      setSaveError(true);
     }
   };
   const chosen = lists.filter((l) => member.has(l.id));
@@ -336,6 +338,7 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
             ))}
             {!shown.length && <li className="px-2 py-1.5 text-[12px] text-zinc-500">No list matches.</li>}
           </ul>
+          {saveError && <p role="alert" className="border-t border-zinc-200 px-2.5 py-1.5 text-[12px] text-red-600 dark:border-zinc-800">Could not update the list. Try again.</p>}
         </div>
       )}
     </div>

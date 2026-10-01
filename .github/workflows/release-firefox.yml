@@ -43,6 +43,8 @@ jobs:
           echo "VERSION=$v" >> "$GITHUB_ENV"
 
       - run: pnpm zip:firefox
+      # AMO's own checks, warnings included (e.g. innerHTML sinks; see patches/).
+      - run: pnpm dlx web-ext@10 lint --self-hosted --warnings-as-errors --source-dir .output/firefox-mv3
 
       - name: Sign with Mozilla (unlisted)
         env:

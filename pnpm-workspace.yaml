@@ -1,0 +1,3 @@
+patchedDependencies:
+  defuddle@0.19.4: patches/defuddle@0.19.4.patch
+  react-dom@19.3.0: patches/react-dom@19.3.0.patch
