@@ -8,7 +8,7 @@ const EXT = path.resolve('.output-e2e/chrome-mv3');
 const EXT_ID = 'hllnpofcacphnggifnlhkikkedipacjk';
 type ChromeApi = {
   tabs: { query: (q: object) => Promise<{ id?: number; url?: string }[]> };
-  storage: { local: { set: (v: object) => Promise<void> } };
+  storage: { local: { set: (v: object) => Promise<void>; get: (k: string) => Promise<Record<string, unknown>> } };
 };
 declare const chrome: ChromeApi;
 
@@ -279,6 +279,27 @@ test('list picker and tag suggestions float over the content instead of pushing 
 
   const { bookmarkId } = await api('GET', `/bookmarks/check-url?url=${encodeURIComponent('https://example.org/article')}`);
   expect(((await api('GET', `/bookmarks/${bookmarkId}/lists`)).lists as { name: string }[]).map((l) => l.name)).toEqual(['Library']);
+  await popup.close();
+  await page.close();
+});
+
+test('settings open inside the popup, show the version, and save', async () => {
+  const page = await ctx.newPage();
+  await page.goto('https://example.org/article');
+  const popup = await openPopup('example.org/article');
+  await popup.getByRole('button', { name: 'Settings' }).click();
+  await expect(popup.getByText(/^Version \d+\.\d+\.\d+$/)).toBeVisible();
+  await expect(popup.getByText('Logged in as')).toBeVisible();
+  await popup.evaluate(() => document.documentElement.classList.add('dark'));
+  await popup.locator('div.w-\\[400px\\]').screenshot({ path: 'test-results/popup-settings.png' });
+  const toggle = popup.getByRole('switch', { name: /Auto-attach transcripts/ });
+  await toggle.click(); // saved asynchronously, so check() would see the old state
+  await expect(toggle).toBeChecked();
+  await popup.getByRole('button', { name: 'Back' }).click();
+  await expect(popup.getByText('Page captured')).toBeVisible();
+  const saved = await popup.evaluate(async () => (await chrome.storage.local.get('settings')).settings);
+  expect(saved).toMatchObject({ autoAttach: true });
+  await popup.evaluate((s) => chrome.storage.local.set({ settings: s }), SETTINGS);
   await popup.close();
   await page.close();
 });
