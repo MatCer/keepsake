@@ -27,7 +27,7 @@ function StatusBanner({ result }: { result: CaptureResult }) {
       return (
         <Banner tone="success" title="Transcript captured">
           {t.segments.length.toLocaleString()} segments · {formatTimestamp(last)} · {t.languageLabel ?? t.language ?? 'language unknown'}
-          {' · read from the open page, no requests made'}
+          {' · read from the page'}
         </Banner>
       );
     }
@@ -66,8 +66,8 @@ export function CapturePanel({
   const [copied, setCopied] = useState(false);
   useEffect(() => {
     setResult(null);
-    runCapture(tabId, tabUrl).then(setResult);
-  }, [tabId, tabUrl, run]);
+    runCapture(tabId, tabUrl, settings.autoOpenTranscript).then(setResult);
+  }, [tabId, tabUrl, run, settings.autoOpenTranscript]);
 
   if (!result)
     return (

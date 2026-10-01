@@ -9,9 +9,11 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
 - **captures the page as Markdown**, using the same engine as Obsidian Web Clipper
   ([Defuddle](https://github.com/kepano/defuddle));
 - on YouTube, **captures the transcript already shown on the page**, with timestamps,
-  chapters, language, title, canonical URL and video id. It makes **no requests to
-  YouTube**: no caption fetch, no API fallback, no clicking the transcript button for you.
-  If the transcript panel isn't open, it tells you to open it and retry.
+  chapters, language, title, canonical URL and video id. Keepsake itself makes **no requests
+  to YouTube**: no caption fetch, no API fallback. If the transcript panel is closed, it clicks
+  YouTube's own **Show transcript** button (setting *Open YouTube transcript automatically*,
+  on by default), so YouTube loads it exactly as after a manual click. With the setting off,
+  it asks you to open the panel and retry.
 
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
 to the Karakeep bookmark. Karakeep is the single store for transcripts: the brain_janitor
@@ -63,7 +65,8 @@ Click the gear in the popup (or the extension's Options):
 
 ## Using it on YouTube
 
-1. Open the video, click **…more** under it, then **Show transcript**.
+1. Open the video. (With *Open YouTube transcript automatically* off, also click **…more**
+   under it, then **Show transcript**.)
 2. Click the Keepsake button. The Capture tab says **Transcript captured** with the segment count and language.
 3. With **Auto-attach** on it is attached right away; otherwise **Attach transcript to Karakeep** stores it on the bookmark as an attachment named
    `keepsake-transcript-<videoId>-<lang>-<hash>.html`. Clicking again does nothing: the

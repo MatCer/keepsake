@@ -1,7 +1,7 @@
-import { expect, test, afterEach } from 'vitest';
+import { expect, test, afterEach, vi } from 'vitest';
 import modern from './__fixtures__/modern.html?raw';
 import legacy from './__fixtures__/legacy.html?raw';
-import { videoIdFromUrl, isCapturableVideoUrl, canonicalVideoUrl, parseTimestamp, formatTimestamp, readTranscript, probePlayer } from './youtube';
+import { videoIdFromUrl, isCapturableVideoUrl, canonicalVideoUrl, parseTimestamp, formatTimestamp, readTranscript, readOrOpenTranscript, probePlayer } from './youtube';
 import { sha256Hex } from './hash';
 import { LIMITS, type PlayerSnapshot } from './types';
 const id = 'dQw4w9WgXcQ';
@@ -73,4 +73,38 @@ test('segments without any way to confirm the current video are not trusted', as
   expect(await readTranscript(doc(noFlexy), url, null, now)).toEqual({ status: 'stale', videoId: id });
   expect(await readTranscript(doc(noFlexy), url, { ...player, videoId: null }, now)).toEqual({ status: 'stale', videoId: id });
   expect(await readTranscript(doc(noFlexy), url, player, now)).toMatchObject({ status: 'captured' });
+});
+
+/** Modern fixture with the transcript panel removed until YouTube's "Show transcript" button is clicked. */
+function closedDoc(withButton = true) {
+  const d = doc();
+  const panels = [...d.querySelectorAll('ytd-engagement-panel-section-list-renderer')];
+  const parent = panels[0]!.parentElement!;
+  panels.forEach(panel => panel.remove());
+  const clicks = { count: 0 };
+  if (withButton) {
+    const section = parent.appendChild(d.createElement('ytd-video-description-transcript-section-renderer'));
+    section.appendChild(d.createElement('button')).addEventListener('click', () => { clicks.count++; panels.forEach(panel => parent.append(panel)); });
+  }
+  return { d, clicks };
+}
+const noWait = () => Promise.resolve();
+test("opens a closed transcript panel with YouTube's own button only when asked", async () => {
+  const off = closedDoc();
+  expect(await readOrOpenTranscript(off.d, url, player, now, false, noWait)).toMatchObject({ status: 'panel-not-loaded' });
+  expect(off.clicks.count).toBe(0);
+  const on = closedDoc();
+  expect(await readOrOpenTranscript(on.d, url, player, now, true, noWait)).toEqual(await readTranscript(doc(), url, player, now));
+  expect(on.clicks.count).toBe(1);
+  const sleep = vi.fn(noWait);
+  expect(await readOrOpenTranscript(closedDoc(false).d, url, player, now, true, sleep)).toMatchObject({ status: 'panel-not-loaded' });
+  expect(sleep).not.toHaveBeenCalled();
+});
+test('an open panel or a video without captions is never clicked', async () => {
+  const sleep = vi.fn(noWait);
+  expect(await readOrOpenTranscript(doc(), url, player, now, true, sleep)).toMatchObject({ status: 'captured' });
+  const none = closedDoc();
+  expect(await readOrOpenTranscript(none.d, url, { ...player, captionTracks: [] }, now, true, sleep)).toMatchObject({ status: 'no-captions' });
+  expect(none.clicks.count).toBe(0);
+  expect(sleep).not.toHaveBeenCalled();
 });

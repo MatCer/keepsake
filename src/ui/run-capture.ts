@@ -28,9 +28,10 @@ export function sanitizePlayer(v: unknown): PlayerSnapshot | null {
 
 /**
  * Runs only because the user opened the popup (activeTab). Reads the page; never fetches.
+ * `openTranscript`: may click YouTube's own "Show transcript" button when the panel is closed.
  * YouTube: a MAIN-world read of the in-memory player response, then the isolated-world DOM reader.
  */
-export async function runCapture(tabId: number, url: string): Promise<CaptureResult> {
+export async function runCapture(tabId: number, url: string, openTranscript: boolean): Promise<CaptureResult> {
   try {
     let player: PlayerSnapshot | null = null;
     if (isCapturableVideoUrl(url)) {
@@ -40,10 +41,10 @@ export async function runCapture(tabId: number, url: string): Promise<CaptureRes
     await browser.scripting.executeScript({ target: { tabId }, files: ['/capture.js'] });
     const [out] = await browser.scripting.executeScript({
       target: { tabId },
-      func: (p: PlayerSnapshot | null) =>
-        (globalThis as unknown as { __keepsakeCapture: (p: PlayerSnapshot | null) => Promise<CaptureResult> })
-          .__keepsakeCapture(p),
-      args: [player],
+      func: (p: PlayerSnapshot | null, open: boolean) =>
+        (globalThis as unknown as { __keepsakeCapture: (p: PlayerSnapshot | null, open: boolean) => Promise<CaptureResult> })
+          .__keepsakeCapture(p, open),
+      args: [player, openTranscript],
     });
     return (out?.result as CaptureResult | undefined) ?? { status: 'unsupported', reason: 'The page returned nothing' };
   } catch {

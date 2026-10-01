@@ -87,6 +87,12 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
           checked={settings.autoAttach}
           onChange={(autoAttach) => update({ autoAttach })}
         />
+        <Toggle
+          label="Open YouTube transcript automatically"
+          description="If the transcript panel is closed, click YouTube's Show transcript button. YouTube then loads it like a manual click."
+          checked={settings.autoOpenTranscript}
+          onChange={(autoOpenTranscript) => update({ autoOpenTranscript })}
+        />
         <Field label="Tag transcripts" hint="Added to the bookmark when a transcript is attached. Leave empty for none.">
           <input
             className={inputClass}

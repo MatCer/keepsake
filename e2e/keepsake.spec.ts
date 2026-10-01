@@ -71,7 +71,7 @@ async function openPopup(id: string) {
   return popup;
 }
 
-const SETTINGS = { address: KK, apiKey: KEY, autoSave: true, autoAttach: false, theme: 'system', obsidianVault: '', obsidianFolder: 'Clippings', transcriptTag: '' };
+const SETTINGS = { address: KK, apiKey: KEY, autoSave: true, autoAttach: false, autoOpenTranscript: false, theme: 'system', obsidianVault: '', obsidianFolder: 'Clippings', transcriptTag: '' };
 
 function youtubeTraffic() {
   return [...cdpLog.filter((r) => isYoutube(r.url)).map((r) => `${r.tab}: ${r.url}`), ...blocked.filter(isYoutube)];
@@ -302,4 +302,24 @@ test('settings open inside the popup, show the version, and save', async () => {
   await popup.evaluate((s) => chrome.storage.local.set({ settings: s }), SETTINGS);
   await popup.close();
   await page.close();
+});
+
+test('closed transcript panel: Keepsake clicks Show transcript itself when the setting is on', async () => {
+  const yt = await openVideo('KsTestShut2', 'closed');
+  const opts = await ctx.newPage();
+  await opts.goto(`chrome-extension://${EXT_ID}/options.html`);
+  await opts.evaluate((s) => chrome.storage.local.set({ settings: s }), { ...SETTINGS, autoOpenTranscript: true });
+  await opts.close();
+  const popup = await openPopup('KsTestShut2');
+  await expect(popup.getByText('Transcript captured')).toBeVisible();
+  await expect(popup.getByText(`${SEGMENTS.length} segments`)).toBeVisible();
+  await expect(yt.locator('ytd-engagement-panel-section-list-renderer[visibility="ENGAGEMENT_PANEL_VISIBILITY_EXPANDED"]')).toHaveCount(1);
+  // The fixture's button makes no request; the extension itself must not either.
+  expect(youtubeTraffic()).toEqual([]);
+  const opts2 = await ctx.newPage();
+  await opts2.goto(`chrome-extension://${EXT_ID}/options.html`);
+  await opts2.evaluate((s) => chrome.storage.local.set({ settings: s }), SETTINGS);
+  await opts2.close();
+  await popup.close();
+  await yt.close();
 });

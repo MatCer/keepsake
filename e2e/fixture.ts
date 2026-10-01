@@ -36,5 +36,7 @@ export function watchPage(videoId: string, panel: 'open' | 'closed') {
     .replaceAll('{{VIDEO_ID}}', videoId)
     .replace('{{VISIBILITY}}', open ? 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED' : 'ENGAGEMENT_PANEL_VISIBILITY_HIDDEN')
     .replace('{{SEGMENTS_1}}', open ? SEGMENTS.slice(0, 3).map(segmentHtml).join('') : '')
-    .replace('{{SEGMENTS_2}}', open ? SEGMENTS.slice(3).map(segmentHtml).join('') : '');
+    .replace('{{SEGMENTS_2}}', open ? SEGMENTS.slice(3).map(segmentHtml).join('') : '')
+    .replace('{{PENDING_1}}', open ? '' : SEGMENTS.slice(0, 3).map(segmentHtml).join(''))
+    .replace('{{PENDING_2}}', open ? '' : SEGMENTS.slice(3).map(segmentHtml).join(''));
 }
