@@ -1,5 +1,4 @@
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { chromium, expect, test, type BrowserContext, type Page } from '@playwright/test';
 import { CHAPTERS, SEGMENTS, TEXT, watchPage } from './fixture';
@@ -142,17 +141,14 @@ test('transcript panel not opened: instruction, no transcript, zero YouTube requ
   await yt.close();
 });
 
-test('end to end: attach to Karakeep, prefetch skips it and uploads the API fallback there, get reads Karakeep; retries keep data intact', async () => {
+test('end to end: attach to Karakeep; retries keep data intact', async () => {
   const url = 'https://www.youtube.com/watch?v=KsTestOpen1';
   const old = new Date(Date.now() - 3 * 3600_000).toISOString();
   // A bookmark that existed before clipping, with user data that must survive.
   // (The earlier test's auto-save may already have created it; POST then returns it unchanged.)
   const pre = await api('POST', '/bookmarks', { type: 'link', url });
   await api('PATCH', `/bookmarks/${pre.id}`, { note: 'my own note', createdAt: old });
-  await api('POST', `/bookmarks/${pre.id}/tags`, { tags: [{ tagName: 'janitor-processed' }, { tagName: 'mine' }] });
-  // An uncaptured video that the opt-in API fallback should still pick up.
-  const other = await api('POST', '/bookmarks', { type: 'link', url: 'https://www.youtube.com/watch?v=KsTestNoCap', createdAt: old });
-  await api('POST', `/bookmarks/${other.id}/tags`, { tags: [{ tagName: 'janitor-processed' }] });
+  await api('POST', `/bookmarks/${pre.id}/tags`, { tags: [{ tagName: 'read-later' }, { tagName: 'mine' }] });
 
   const yt = await openVideo('KsTestOpen1', 'open');
   for (const expected of ['Transcript attached to the bookmark', 'This exact transcript is already attached']) {
@@ -170,7 +166,7 @@ test('end to end: attach to Karakeep, prefetch skips it and uploads the API fall
   expect(all).toHaveLength(1);
   const b = await api('GET', `/bookmarks/${pre.id}`);
   expect(b.note).toBe('my own note');
-  expect(b.tags.map((t: { name: string }) => t.name).sort()).toEqual(['janitor-processed', 'mine']);
+  expect(b.tags.map((t: { name: string }) => t.name).sort()).toEqual(['mine', 'read-later']);
   expect(b.assets).toHaveLength(1);
   expect(b.assets[0].assetType).toBe('userUploaded');
   expect(b.assets[0].fileName).toMatch(/^keepsake-transcript-KsTestOpen1-en-[0-9a-f]{12}\.html$/);
@@ -184,26 +180,6 @@ test('end to end: attach to Karakeep, prefetch skips it and uploads the API fall
   expect(record.transcript.text).toBe(TEXT);
   expect(record.transcript.language).toBe('en');
 
-  // The brain_janitor half needs the private hermes-setup repo next to this one.
-  const hermes = process.env.HERMES_SCRIPTS ?? path.resolve('../hermes-setup/profiles/brain_janitor/scripts');
-  test.skip(!existsSync(hermes), `brain_janitor scripts not found at ${hermes}`);
-  const report = JSON.parse(
-    execFileSync('python3', ['e2e/hermes_e2e.py', KK, KEY, 'KsTestOpen1'], { encoding: 'utf8' }) as string,
-  );
-  expect(report.prefetch_rc).toEqual([0, 0]);
-  // The browser-captured video is never fetched; the uncaptured one is fetched once and uploaded.
-  expect(report.youtube_calls).toEqual(['KsTestNoCap']);
-  expect(report.local_files).toEqual(['yt_transcripts/_state.json']);
-  expect(report.get_rc).toBe(0);
-  expect(report.get_stdout).toBe(`[transcript language=en auto_generated=True]\n${TEXT}\n`);
-  const fetched = await api('GET', `/bookmarks/${other.id}`);
-  expect(fetched.assets).toHaveLength(1);
-  expect(fetched.assets[0].fileName).toMatch(/^keepsake-transcript-KsTestNoCap-en-[0-9a-f]{12}\.html$/);
-  const fallback = await (await fetch(`${KK}/api/v1/assets/${fetched.assets[0].id}`, { headers: { authorization: `Bearer ${KEY}` } })).text();
-  const fallbackRecord = JSON.parse(fallback.match(/id="keepsake-capture">([\s\S]*?)<\/script>/)?.[1] ?? '');
-  expect(fallbackRecord.provenance).toBe('youtube-api');
-  expect(fallbackRecord.transcript.segments).toEqual([{ start: 0, text: 'Fetched by the fallback.' }, { start: 2.5, text: 'Second line.' }]);
-  expect((await api('GET', `/bookmarks/${pre.id}`)).assets).toHaveLength(1);
   await yt.close();
 });
 

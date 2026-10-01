@@ -16,7 +16,8 @@ export function jevTag(client: JevClient, bookmarkId: string, capture: Capture, 
 }
 async function tagOnce(client: JevClient, id: string, capture: Capture, config: JevConfig, opts: JevOptions): Promise<JevOutcome> {
   const bookmark = await client.getBookmark(id, false);
-  if (bookmark.tags.some(t => t.name === 'jev-tagged' || t.name === 'janitor-processed')) return { kind: 'skipped' };
+  // Already classified, by Keepsake or by hand: a topic tag is the sign.
+  if (bookmark.tags.some(t => t.name === 'jev-tagged' || t.name.startsWith('topic-'))) return { kind: 'skipped' };
   const url = bookmark.content.url ?? '';
   if (capture.kind === 'youtube-transcript' ? videoIdFromUrl(url) !== capture.video.id : url.split('#')[0] !== capture.url.split('#')[0]) return { kind: 'mismatch' };
   if (capture.kind === 'page') {

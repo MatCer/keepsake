@@ -13,19 +13,15 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
   to YouTube**: no caption fetch, no API fallback. If the transcript panel is closed, it clicks
   YouTube's own **Show transcript** button (setting *Open YouTube transcript automatically*,
   on by default), so YouTube loads it exactly as after a manual click, and closes it again
-  after the capture. With the setting off,
-  it asks you to open the panel and retry.
-
-With a Jev API key and host permission, Keepsake sends the title, URL, description (up to 600 characters)
-and page text/transcript (up to 3,000 characters) to the Jev endpoint you configure on save or open.
-This runs in the background worker, so closing the popup does not interrupt it. It applies research/library lists and a topic tag directly to Karakeep, then marks
-`jev-tagged`; bookmarks already `jev-tagged` or `janitor-processed` are skipped.
-Page Markdown is also attached as `keepsake-page-<hash>.html`. Jev is off by default.
+  after the capture. With the setting off, it asks you to open the panel and retry;
+- optionally **classifies the bookmark with Jev** right after saving and files it into
+  Karakeep lists and a topic tag (see [Jev tagging](#jev-tagging)).
 
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
-to the Karakeep bookmark. Karakeep is the single store for transcripts: the brain_janitor
-jobs read them from there and upload their own API fallback there too (their setup lives
-in the private `MatCer/hermes-setup` repo).
+to the Karakeep bookmark. Karakeep is the single store: a Hermes agent reads the
+transcripts and page Markdown from there for its triage, and uploads its own transcript
+fallback there too. Why this exists instead of the official Karakeep extension:
+[docs/MOTIVATION.md](docs/MOTIVATION.md).
 
 <p align="center">
   <img src="docs/screenshots/popup-light.png" width="300" alt="Popup on a YouTube video: bookmark with tags and note, transcript captured, attach button">
@@ -87,6 +83,22 @@ YouTube's single-page navigation), *Too large to capture*, *Nothing to capture h
 If Karakeep rejects an upload after 3 attempts, the capture goes to an outbox shown in the
 popup with **Retry now**. Nothing is dropped silently.
 
+## Jev tagging
+
+Off until you set an API key, endpoint and model. Then, when a bookmark is saved (or opened
+and not yet classified), Keepsake:
+
+1. attaches the page Markdown as `keepsake-page-<hash>.html` (YouTube: the transcript is
+   attached as described above);
+2. sends the title, URL, description (up to 600 characters) and page text or transcript (up
+   to 3,000 characters) to your Jev endpoint, with your existing `topic-*` tags as choices;
+3. tags the bookmark with the best topic (probability at least 0.5) and `jev-tagged`, then
+   adds it to `Research > Tech|Business|Ideas` and `Library > Articles|Tools|Videos|Repos`
+   when those lists exist.
+
+This runs in the extension's background worker, so you can close the popup right away.
+Bookmarks that already have `jev-tagged` or any `topic-*` tag are skipped. On YouTube, Jev runs only when the transcript was captured.
+
 ## How Karakeep stores the transcript
 
 Checked against the deployed Karakeep **0.32.0**, both in its source and on a local
@@ -118,8 +130,6 @@ YouTube tab and the popup. It asserts:
 - zero YouTube/caption requests while capturing;
 - the unopened-panel instruction appears and no transcript is created;
 - the exact segments, timestamps and chapters arrive in Karakeep;
-- the prefetch job skips the captured video, fetches an uncaptured one through a stub and
-  uploads it to Karakeep, `get` reads from Karakeep, and no local transcript files exist;
 - a duplicate click leaves one bookmark, one attachment, and the original note and tags.
 
 The local Karakeep runs with its crawler disabled and a dead proxy, so bookmarking test
@@ -132,7 +142,7 @@ YouTube URLs never contacts YouTube.
 - **Karakeep:** Delete `keepsake-transcript-*.html` and `keepsake-page-*.html` from
   Attachments as needed. Remove optional transcript/Jev tags and Jev list memberships manually. Bookmarks it
   created are ordinary link bookmarks.
-- **brain_janitor:** see the rollback notes in the `MatCer/hermes-setup` repo. Attachments
+- **Hermes:** see the rollback notes in the private `MatCer/hermes-setup` repo. Attachments
   stay in Karakeep and are harmless.
 
 ## License
