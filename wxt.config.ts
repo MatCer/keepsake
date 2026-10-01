@@ -21,6 +21,14 @@ export default defineConfig({
     optional_host_permissions: ['https://*/*', 'http://*/*'],
     ...(e2e ? { host_permissions: ['<all_urls>'], key: E2E_KEY } : {}),
     action: { default_title: 'Keepsake' },
-    browser_specific_settings: { gecko: { id: 'keepsake@matcer.github.io' } },
+    browser_specific_settings: {
+      gecko: {
+        id: 'keepsake@matcer.github.io',
+        // Self-distributed: .github/workflows/release-firefox.yml publishes this file with each signed build.
+        update_url: 'https://github.com/MatCer/keepsake/releases/latest/download/updates.json',
+        // Nothing goes to the developer; requests only reach the user's own Karakeep.
+        data_collection_permissions: { required: ['none'] },
+      },
+    },
   },
 });

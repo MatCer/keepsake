@@ -1,0 +1,67 @@
+# Publishing a GitHub Release tagged vX.Y.Z adds a Mozilla-signed (unlisted) Firefox build to it.
+# Firefox reads updates.json from the latest release (manifest update_url) and updates itself.
+name: Release Firefox
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-firefox
+  cancel-in-progress: false
+
+jobs:
+  release:
+    # Prereleases never become releases/latest, so Firefox would not see them anyway.
+    if: ${{ !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      # The tag is the version; AMO needs a new, higher one for every upload.
+      - name: Set version
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          v="${TAG#v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::Tag must be vX.Y.Z, got $TAG"; exit 1; }
+          jq --arg v "$v" '.version = $v' package.json > package.tmp && mv package.tmp package.json
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - run: pnpm zip:firefox
+
+      - name: Sign with Mozilla (unlisted)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          pnpm dlx web-ext@10 sign --channel unlisted \
+            --source-dir .output/firefox-mv3 \
+            --upload-source-code ".output/keepsake-$VERSION-sources.zip" \
+            --artifacts-dir signed \
+            --approval-timeout 1200000
+          mv signed/*.xpi "keepsake-$VERSION.xpi"
+
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          tag: ${{ github.event.release.tag_name }}
+        run: |
+          link="https://github.com/${{ github.repository }}/releases/download/$tag/keepsake-$VERSION.xpi"
+          jq -n --arg v "$VERSION" --arg l "$link" \
+            '{addons: {"keepsake@matcer.github.io": {updates: [{version: $v, update_link: $l}]}}}' > updates.json
+          gh release upload "$tag" "keepsake-$VERSION.xpi" updates.json --clobber
