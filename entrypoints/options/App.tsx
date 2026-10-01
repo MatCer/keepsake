@@ -71,6 +71,12 @@ export function App() {
           checked={settings.autoSave}
           onChange={(autoSave) => update({ autoSave })}
         />
+        <Toggle
+          label="Auto-attach transcripts"
+          description="Attach a captured YouTube transcript to the bookmark as soon as the popup opens."
+          checked={settings.autoAttach}
+          onChange={(autoAttach) => update({ autoAttach })}
+        />
         <Field label="Tag transcripts" hint="Added to the bookmark when a transcript is attached. Leave empty for none.">
           <input
             className={inputClass}

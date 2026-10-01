@@ -48,6 +48,7 @@ Click the gear in the popup (or the extension's Options):
 | Email & password / API key | Password sign-in exchanges your credentials for an API key, as the official Karakeep extension does. The key is kept in this browser profile's local extension storage. It is never synced, exported or logged. |
 | Logged in as / Sign out | Shows the Karakeep account. Sign out forgets the key; revoke it in Karakeep under Settings → API Keys. |
 | Auto-save on open | On: the tab is saved when the popup opens. Off: you confirm before saving. |
+| Auto-attach transcripts | On (default): a captured YouTube transcript is attached to the bookmark when the popup opens. Replacing a different transcript still asks first. Off: click **Attach**. |
 | Tag transcripts | Optional tag added when a transcript is attached. |
 | Theme | System, light or dark. |
 | Obsidian vault / folder | Shows an **Obsidian** button that copies the Markdown and opens `obsidian://new…&clipboard`, the same way Obsidian Web Clipper does. |
@@ -56,7 +57,7 @@ Click the gear in the popup (or the extension's Options):
 
 1. Open the video, click **…more** under it, then **Show transcript**.
 2. Click the Keepsake button. The Capture tab says **Transcript captured** with the segment count and language.
-3. **Attach transcript to Karakeep** stores it on the bookmark as an attachment named
+3. With **Auto-attach** on it is attached right away; otherwise **Attach transcript to Karakeep** stores it on the bookmark as an attachment named
    `keepsake-transcript-<videoId>-<lang>-<hash>.html`. Clicking again does nothing: the
    same transcript is already attached. A *different* transcript in the same language
    is only replaced after you confirm.

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { browser } from 'wxt/browser';
 import { attachTranscript, type AttachOutcome } from '../../lib/attach';
 import { noteFileName, obsidianUri, toJson, toMarkdown } from '../../lib/format';
@@ -90,7 +90,7 @@ export function CapturePanel({
       {capture ? (
         <>
           {capture.kind === 'youtube-transcript' && client && bookmark && (
-            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} address={settings.address} />
+            <AttachToKarakeep client={client} bookmark={bookmark} capture={capture} tag={settings.transcriptTag} address={settings.address} auto={settings.autoAttach} />
           )}
           {capture.kind === 'youtube-transcript' && !bookmark && (
             <p className="text-[12px] text-zinc-500">Save the bookmark to attach this transcript to it.</p>
@@ -144,12 +144,14 @@ function AttachToKarakeep({
   capture,
   tag,
   address,
+  auto,
 }: {
   client: KarakeepClient;
   bookmark: Bookmark;
   capture: YoutubeCapture;
   tag: string;
   address: string;
+  auto: boolean;
 }) {
   const [state, setState] = useState<AttachState>({ phase: 'idle' });
   const attach = async (replaceAssetId?: string) => {
@@ -170,6 +172,13 @@ function AttachToKarakeep({
       setState({ phase: 'failed', message, queued });
     }
   };
+  // Ref, not state: StrictMode re-runs effects, and a second run would only report "already attached".
+  const autoRan = useRef(false);
+  useEffect(() => {
+    if (!auto || autoRan.current) return;
+    autoRan.current = true;
+    attach();
+  }, []); // Once per capture; a conflict still waits for the user to choose.
 
   if (state.phase === 'done') {
     const o = state.outcome;

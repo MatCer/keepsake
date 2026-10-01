@@ -88,6 +88,8 @@ export interface Settings {
   apiKey: string;
   /** Save the tab to Karakeep as soon as the popup opens. */
   autoSave: boolean;
+  /** Attach a captured YouTube transcript to the bookmark without a click. */
+  autoAttach: boolean;
   theme: 'system' | 'light' | 'dark';
   /** Obsidian vault name for obsidian://new; empty disables the Obsidian button. */
   obsidianVault: string;
@@ -100,6 +102,7 @@ export const DEFAULT_SETTINGS: Settings = {
   address: '',
   apiKey: '',
   autoSave: true,
+  autoAttach: true,
   theme: 'system',
   obsidianVault: '',
   obsidianFolder: 'Clippings',

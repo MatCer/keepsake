@@ -71,6 +71,8 @@ async function openPopup(id: string) {
   return popup;
 }
 
+const SETTINGS = { address: KK, apiKey: KEY, autoSave: true, autoAttach: false, theme: 'system', obsidianVault: '', obsidianFolder: 'Clippings', transcriptTag: '' };
+
 function youtubeTraffic() {
   return [...cdpLog.filter((r) => isYoutube(r.url)).map((r) => `${r.tab}: ${r.url}`), ...blocked.filter(isYoutube)];
 }
@@ -106,7 +108,7 @@ test.beforeAll(async () => {
   await opts.goto(`chrome-extension://${EXT_ID}/options.html`);
   await opts.evaluate(
     (s) => chrome.storage.local.set({ settings: s }),
-    { address: KK, apiKey: KEY, autoSave: true, theme: 'system', obsidianVault: '', obsidianFolder: 'Clippings', transcriptTag: '' },
+    SETTINGS,
   );
   await opts.close();
 });
@@ -210,4 +212,27 @@ test('any page: Markdown capture', async () => {
   await expect(popup.locator('pre')).toContainText('First paragraph with **bold** text');
   await popup.close();
   await page.close();
+});
+
+test('auto-attach: opening the popup attaches the transcript once, no click', async () => {
+  const setAuto = async (autoAttach: boolean) => {
+    const opts = await ctx.newPage();
+    await opts.goto(`chrome-extension://${EXT_ID}/options.html`);
+    await opts.evaluate((s) => chrome.storage.local.set({ settings: s }), { ...SETTINGS, autoAttach });
+    await opts.close();
+  };
+  await setAuto(true);
+  const yt = await openVideo('KsTestAuto1', 'open');
+  for (const expected of ['Transcript attached to the bookmark', 'This exact transcript is already attached']) {
+    const popup = await openPopup('KsTestAuto1');
+    await expect(popup.getByText(expected)).toBeVisible();
+    await popup.close();
+  }
+  expect(youtubeTraffic()).toEqual([]);
+  const { bookmarkId } = await api('GET', `/bookmarks/check-url?url=${encodeURIComponent('https://www.youtube.com/watch?v=KsTestAuto1')}`);
+  const b = await api('GET', `/bookmarks/${bookmarkId}`);
+  expect(b.assets).toHaveLength(1);
+  expect(b.assets[0].fileName).toMatch(/^keepsake-transcript-KsTestAuto1-en-[0-9a-f]{12}\.html$/);
+  await setAuto(false);
+  await yt.close();
 });
