@@ -235,7 +235,7 @@ function Main({ tab, settings, client }: { tab: Tab; settings: Settings; client:
         </div>
         <div role="tabpanel">
           {view === 'capture' ? (
-            <CapturePanel tabId={tab.id} tabUrl={tab.url} settings={settings} client={client} bookmark={bookmark} />
+            <CapturePanel tabId={tab.id} tabUrl={tab.url} settings={settings} client={client} bookmark={bookmark} onBookmarkChanged={async () => { if (bookmark && client) await open(client, bookmark.id, false); }} />
           ) : (
             <ScrapedPanel bookmark={bookmark} onRefresh={() => bookmark && client && open(client, bookmark.id, false)} />
           )}

@@ -23,8 +23,11 @@ toolbar button opens the popup, which:
   the user to open the panel and retry.
 - Capture runs only after a click (`activeTab` + `scripting`). No content scripts are
   registered, no polling, no host permission at install time.
-- The only network destination is the Karakeep origin the user configured. Its host
-  permission is requested at runtime for that exact origin.
+- Network destinations are the configured Karakeep origin and the optional Jev endpoint
+  (default `api.openjev.sh`). Both require runtime host permission. Jev is disabled unless a
+  local API key is set. Jev tagging runs in the background worker (`entrypoints/background.ts`),
+  which reads keys from storage itself; the popup only sends `{ type: 'jev-tag', bookmarkId, capture }`
+  and the worker accepts it only from extension pages.
 - Page text, titles and transcripts are untrusted: escaped for Markdown/YAML/HTML,
   size limited (`LIMITS` in `src/lib/types.ts`), never logged.
 
@@ -38,12 +41,18 @@ The deployed server reports `{"version":"0.32.0"}` at `/api/version`. Checked in
 | `PATCH /bookmarks/{id}` `note`/`text`/`description` | Rejected. Overwrites user- or crawler-owned fields. |
 | attach as `linkHtmlContent` | Impossible: `isAllowedToAttachAsset` returns false for it (`packages/trpc/lib/attachments.ts`). The scraped HTML cannot be replaced through the API. |
 | `POST /assets` (`text/html`) + `POST /bookmarks/{id}/assets` with `assetType: "userUploaded"` | **Used.** `text/html` is in `SUPPORTED_UPLOAD_ASSET_TYPES`, `userUploaded` is attachable, and the web UI lists it under Attachments with its file name. Nothing else on the bookmark changes. |
+| `POST <Jev endpoint>` (default `https://api.openjev.sh/v1/systemone`) | Optional classification, configurable model (default `openjev`), bearer key, 30 s timeout; title/URL, description ≤600 characters, page text/transcript ≤3,000 characters. |
+| `GET /tags`, `GET /lists`, `PUT /lists/{id}/bookmarks/{id}`, `POST /bookmarks/{id}/tags` | Jev uses sorted `topic-*` tags with ≥2 bookmarks (first 250), resolves manual lists by parent/child, and writes topic plus `jev-tagged` before list memberships. |
 | `GET /bookmarks/{id}/content` (Markdown) | Not in 0.32.0. The scraped copy is read from `GET /bookmarks/{id}?includeContent=true` → `content.htmlContent`. |
 
 The transcript asset is a small HTML document: readable transcript with timestamp links
 for humans, plus the full capture record as
 `<script type="application/json" id="keepsake-capture">` (with `<` escaped as `<`)
 for machines. File name: `keepsake-transcript-<videoId>-<lang|und>-<sha256[:12]>.html`.
+
+Page assets wrap escaped Defuddle Markdown in `<pre>` plus the full JSON record, named
+`keepsake-page-<sha256[:12]>.html`. Jev uploads them before classification, reusing
+an exact filename on retry. Classification failures are non-blocking popup warnings.
 
 Idempotency: before uploading, the popup reads `bookmark.assets[].fileName`.
 - same video + language + hash already attached → nothing to do ("already attached");
@@ -59,10 +68,12 @@ Idempotency: before uploading, the popup reads `bookmark.assets[].fileName`.
 | `types.ts` | shared contract (done) |
 | `youtube.ts` | `videoIdFromUrl(url)`, `isYoutubeVideoUrl`, `canonicalVideoUrl(id)`, `parseTimestamp("1:02:03")→3723`, `formatTimestamp(3723)→"1:02:03"`, `readTranscript(doc, player, url)→CaptureResult` |
 | `page.ts` | `capturePage(doc, url)→CaptureResult` via `defuddle/full` (`useAsync:false`, Markdown) |
-| `format.ts` | `toMarkdown(capture)`, `toJson(capture)`, `toTranscriptAssetHtml(capture)`, `parseTranscriptAssetHtml(html)`, `assetFileName(capture)`, `noteFileName(capture)`; YAML/Markdown/HTML escaping |
+| `format.ts` | `toMarkdown(capture)`, `toJson(capture)`, `toTranscriptAssetHtml(capture)`, `toPageAssetHtml(capture)`, `pageAssetFileName(capture)`, `parseTranscriptAssetHtml(html)`, `assetFileName(capture)`, `noteFileName(capture)`; YAML/Markdown/HTML escaping |
+| `jev.ts` | Jev request/answer validation and classification plan; topic threshold 0.5 |
+| `jev-tag.ts` | Serialized auto-tagging; skip `jev-tagged`/`janitor-processed`, verify URL, attach page HTML once, apply lists/tags |
 | `hash.ts` | `sha256Hex(text)` via `crypto.subtle` |
 | `karakeep.ts` | typed REST client with timeouts and bounded retries |
-| `settings.ts` | `chrome.storage.local` settings; API key never in `storage.sync` |
+| `settings.ts` | `chrome.storage.local` settings; Karakeep/Jev keys never in `storage.sync` |
 | `outbox.ts` | captures whose upload failed, persisted until sent or dismissed |
 
 ### YouTube transcript reading (`readTranscript`)

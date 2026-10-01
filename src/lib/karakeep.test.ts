@@ -150,3 +150,10 @@ test('204 with an empty, non-null body (Firefox) succeeds without retrying', asy
   await client.removeFromList('l', 'b');
   expect(fetch).toHaveBeenCalledTimes(2);
 });
+
+test('tag counts are retained when supplied by Karakeep', async () => {
+  const client = new KarakeepClient('https://example.com', 'test-key', { fetch: async () => Response.json({ tags: [
+    { id: 'a', name: 'topic-ai', numBookmarks: 2 }, { id: 'b', name: 'topic-new' }, { id: 'c', name: 'topic-empty', numBookmarks: null },
+  ], nextCursor: null }) });
+  expect(await client.allTags()).toEqual([{ id: 'a', name: 'topic-ai', numBookmarks: 2 }, { id: 'b', name: 'topic-new' }, { id: 'c', name: 'topic-empty' }]);
+});

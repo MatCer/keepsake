@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { capture } from './__fixtures__/capture';
-import { assetFileName, parseAssetFileName, toMarkdown, toJson, toTranscriptAssetHtml, parseTranscriptAssetHtml, noteFileName, obsidianUri, escapeMarkdownInline, yamlString } from './format';
+import { pageAssetFileName, toPageAssetHtml, assetFileName, parseAssetFileName, toMarkdown, toJson, toTranscriptAssetHtml, parseTranscriptAssetHtml, noteFileName, obsidianUri, escapeMarkdownInline, yamlString } from './format';
 import { LIMITS, type PageCapture } from './types';
 test('asset filename round trip and language separation', () => {
   const c = capture();
@@ -65,4 +65,21 @@ test('safe filename truncation and clipboard URI', () => {
 test('description cannot inject thematic breaks or setext headings', () => {
   const c = capture(); c.video.description = 'A paragraph\n---\n===\n- - -';
   expect(toMarkdown(c)).toContain('A paragraph\n\\---\n\\===\n\\- - -');
+});
+
+test('page asset filename uses the first twelve hash digits', () => {
+  const c: PageCapture = { ...capture(), kind: 'page', page: { markdown: 'Hello', author: null, published: null, site: null, description: null, sha256: 'abcdef012345' + '0'.repeat(52) } };
+  expect(pageAssetFileName(c)).toBe('keepsake-page-abcdef012345.html');
+});
+test('page asset safely preserves Markdown and the complete JSON record', () => {
+  const evil = '</pre></script><script>alert(1)</script>&"\u2028\u2029';
+  const c: PageCapture = { ...capture(), title: evil, kind: 'page', page: { markdown: evil, author: null, published: null, site: null, description: null, sha256: 'a'.repeat(64) } };
+  const html = toPageAssetHtml(c);
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  expect(html.startsWith('<!doctype html>')).toBe(true);
+  expect(doc.title).toBe(`Page: ${evil}`);
+  expect(doc.querySelector('meta[name="keepsake-schema"]')?.getAttribute('content')).toBe(c.schema);
+  expect(doc.querySelector('pre')?.textContent).toBe(toMarkdown(c));
+  expect(doc.querySelectorAll('script')).toHaveLength(1);
+  expect(JSON.parse(doc.querySelector('#keepsake-capture')?.textContent ?? '')).toEqual(c);
 });

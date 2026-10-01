@@ -93,7 +93,7 @@ export function BookmarkCard({
         </div>
       </div>
       <TagEditor client={client} bookmark={bookmark} act={act} />
-      <ListPicker client={client} bookmarkId={bookmark.id} />
+      <ListPicker client={client} bookmark={bookmark} />
       <NoteEditor client={client} bookmark={bookmark} onSaved={refresh} />
       {error && <Banner tone="error" title="Karakeep request failed">{error}</Banner>}
     </section>
@@ -249,7 +249,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
   );
 }
 
-function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId: string }) {
+function ListPicker({ client, bookmark }: { client: KarakeepClient; bookmark: Bookmark }) {
+  const bookmarkId = bookmark.id;
   const [lists, setLists] = useState<List[] | null>(null);
   const [member, setMember] = useState<Set<string>>(new Set());
   const [error, setError] = useState(false);
@@ -266,7 +267,7 @@ function ListPicker({ client, bookmarkId }: { client: KarakeepClient; bookmarkId
       },
       () => setError(true),
     );
-  }, [client, bookmarkId]);
+  }, [client, bookmarkId, bookmark]);
   if (error) return <p className="text-[12px] text-red-600">Could not load lists.</p>;
   if (!lists?.length) return null;
 
