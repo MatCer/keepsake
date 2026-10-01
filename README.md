@@ -35,8 +35,14 @@ pnpm build:firefox    # Firefox → .output/firefox-mv3
 
 - **Chrome:** open `chrome://extensions`, enable Developer mode, **Load unpacked**, pick
   `.output/chrome-mv3`.
-- **Firefox:** open `about:debugging#/runtime/this-firefox`, **Load Temporary Add-on**, pick
-  `.output/firefox-mv3/manifest.json` (or `pnpm zip:firefox` and sign it for a permanent install).
+- **Firefox:** install `keepsake-<version>.xpi` from the
+  [latest release](https://github.com/MatCer/keepsake/releases/latest) once. Firefox then updates it
+  itself (it checks about once a day; *Check for Updates* in `about:addons` forces it). Every extension
+  change pushed to `main` is signed by Mozilla as an unlisted add-on and released by
+  [`release-firefox.yml`](.github/workflows/release-firefox.yml), which needs the repository secrets
+  `AMO_JWT_ISSUER` and `AMO_JWT_SECRET` (addons.mozilla.org → Developer Hub → Manage API Keys).
+  For local testing: `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on** →
+  `.output/firefox-mv3/manifest.json`.
 
 ## Configure
 

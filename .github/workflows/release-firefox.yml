@@ -1,0 +1,75 @@
+# Every extension change on main becomes a Mozilla-signed (unlisted) build on a GitHub Release.
+# Firefox reads updates.json from the latest release (manifest update_url) and updates itself.
+name: Release Firefox
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - entrypoints/**
+      - src/**
+      - public/**
+      - assets/**
+      - wxt.config.ts
+      - package.json
+      - pnpm-lock.yaml
+      - .github/workflows/release-firefox.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-firefox
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.7.0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test
+
+      # AMO needs a new, higher version for every upload.
+      - name: Set version
+        run: |
+          v="$(jq -r .version package.json | cut -d. -f1-2).${{ github.run_number }}"
+          jq --arg v "$v" '.version = $v' package.json > package.tmp && mv package.tmp package.json
+          echo "VERSION=$v" >> "$GITHUB_ENV"
+
+      - run: pnpm zip:firefox
+
+      - name: Sign with Mozilla (unlisted)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          pnpm dlx web-ext@10 sign --channel unlisted \
+            --source-dir .output/firefox-mv3 \
+            --upload-source-code ".output/keepsake-$VERSION-sources.zip" \
+            --artifacts-dir signed \
+            --approval-timeout 1200000
+          mv signed/*.xpi "keepsake-$VERSION.xpi"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="firefox-v$VERSION"
+          link="https://github.com/${{ github.repository }}/releases/download/$tag/keepsake-$VERSION.xpi"
+          jq -n --arg v "$VERSION" --arg l "$link" \
+            '{addons: {"keepsake@matcer.github.io": {updates: [{version: $v, update_link: $l}]}}}' > updates.json
+          gh release create "$tag" "keepsake-$VERSION.xpi" updates.json \
+            --title "Keepsake $VERSION (Firefox)" \
+            --notes "Signed Firefox build of ${{ github.sha }}. Install the .xpi once; Firefox updates it from here." \
+            --latest
