@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react';
+import { useEffect, type ButtonHTMLAttributes, type ReactNode, type RefObject } from 'react';
 import type { Settings } from '../lib/types';
 
 export function applyTheme(theme: Settings['theme']) {
@@ -107,4 +107,27 @@ export function Field({ label, hint, children }: { label: string; hint?: string;
 
 export function Logo({ className = 'size-5' }: { className?: string }) {
   return <img src="/icon/32.png" alt="" className={className} />;
+}
+
+/** Floating panel under a trigger: overlays the content below instead of pushing it down. */
+export const popoverClass =
+  'absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-lg ring-1 ring-black/5 dark:border-zinc-800 dark:bg-zinc-900 dark:ring-white/5';
+
+/** Calls onClose on a pointer press outside `ref` or on Escape, while `open`. */
+export function useDismiss(ref: RefObject<HTMLElement | null>, open: boolean, onClose: () => void) {
+  useEffect(() => {
+    if (!open) return;
+    const press = (e: PointerEvent) => {
+      if (!ref.current?.contains(e.target as Node)) onClose();
+    };
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('pointerdown', press);
+    document.addEventListener('keydown', key);
+    return () => {
+      document.removeEventListener('pointerdown', press);
+      document.removeEventListener('keydown', key);
+    };
+  }, [ref, open, onClose]);
 }
