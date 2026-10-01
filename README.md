@@ -12,7 +12,8 @@ A browser extension for [Karakeep](https://karakeep.app). One click on the toolb
   chapters, language, title, canonical URL and video id. Keepsake itself makes **no requests
   to YouTube**: no caption fetch, no API fallback. If the transcript panel is closed, it clicks
   YouTube's own **Show transcript** button (setting *Open YouTube transcript automatically*,
-  on by default), so YouTube loads it exactly as after a manual click. With the setting off,
+  on by default), so YouTube loads it exactly as after a manual click, and closes it again
+  after the capture. With the setting off,
   it asks you to open the panel and retry.
 
 Captures can be copied, downloaded as Markdown or JSON, sent to Obsidian, or attached
