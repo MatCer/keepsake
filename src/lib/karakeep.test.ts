@@ -142,3 +142,11 @@ test.each([
   await expect(client.lists()).rejects.toBeInstanceOf(KarakeepError);
   await expect(client.bookmarkLists('b')).rejects.toBeInstanceOf(KarakeepError);
 });
+test('204 with an empty, non-null body (Firefox) succeeds without retrying', async () => {
+  // Firefox hands fetch() a 204 with an empty stream where Chrome gives body === null.
+  const firefox204 = () => ({ ok: true, status: 204, headers: new Headers(), body: new ReadableStream(), arrayBuffer: async () => new ArrayBuffer(0) }) as unknown as Response;
+  const { client, fetch } = setup([firefox204(), firefox204()]);
+  await client.addToList('l', 'b');
+  await client.removeFromList('l', 'b');
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

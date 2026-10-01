@@ -1,0 +1,26 @@
+diff --git a/cjs/react-dom-client.production.js b/cjs/react-dom-client.production.js
+index a2b010df6add576b3a364997c90fc0db841fed1c..7736226b892dacb1831e981537597cb012648503 100644
+--- a/cjs/react-dom-client.production.js
++++ b/cjs/react-dom-client.production.js
+@@ -14520,8 +14520,8 @@ function setProp(domElement, tag, key, value, props, prevValue) {
+         key = value.__html;
+         if (null != key) {
+           if (null != props.children) throw Error(formatProdErrorMessage(60));
+-          (null != prevValue ? prevValue.__html : void 0) !== key &&
+-            (domElement.innerHTML = key);
++          // Keepsake patch: no raw-HTML sink; the extension never uses dangerouslySetInnerHTML.
++          throw Error("dangerouslySetInnerHTML is disabled in this build");
+         }
+       }
+       break;
+@@ -14738,8 +14738,8 @@ function setPropOnCustomElement(domElement, tag, key, value, props, prevValue) {
+         key = value.__html;
+         if (null != key) {
+           if (null != props.children) throw Error(formatProdErrorMessage(60));
+-          (null != prevValue ? prevValue.__html : void 0) !== key &&
+-            (domElement.innerHTML = key);
++          // Keepsake patch: no raw-HTML sink; the extension never uses dangerouslySetInnerHTML.
++          throw Error("dangerouslySetInnerHTML is disabled in this build");
+         }
+       }
+       break;
