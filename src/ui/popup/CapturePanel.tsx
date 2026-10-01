@@ -93,7 +93,7 @@ export function CapturePanel({
       <StatusBanner result={result} />
       {capture ? (
         <>
-          {client && bookmark && settings.jevApiKey && (
+          {client && bookmark && settings.jevApiKey && settings.jevEndpoint && settings.jevModel && (
             <JevTagging key={`${bookmark.id}:${capture.url}:${capture.kind === 'page' ? capture.page.sha256 : capture.transcript.sha256}`} bookmarkId={bookmark.id} capture={capture} endpoint={settings.jevEndpoint} onBookmarkChanged={onBookmarkChanged} />
           )}
           {capture.kind === 'youtube-transcript' && client && bookmark && (

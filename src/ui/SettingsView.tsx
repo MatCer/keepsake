@@ -147,7 +147,7 @@ export function SettingsView({ embedded = false }: { embedded?: boolean }) {
 
       <p className="text-[12px] leading-relaxed text-zinc-500">
         Keepsake reads pages only when you open it. On YouTube it reads the transcript already shown on the page and never
-        requests captions itself. It talks to your Karakeep and, when enabled, api.openjev.sh for classification.
+        requests captions itself. It talks to your Karakeep and, when enabled, your Jev endpoint for classification.
       </p>
       <p className="text-[12px] text-zinc-500">Version {browser.runtime.getManifest().version}</p>
     </div>
@@ -277,7 +277,7 @@ function JevSettings({ initial, onSave }: { initial: JevConfig; onSave: (config:
       <Field label="Jev API key" hint="Empty = off. When set, the page text/transcript of saved bookmarks is sent to the endpoint below for classification. The key stays in local browser storage.">
         <input className={inputClass} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} />
       </Field>
-      <Field label="Endpoint" hint="Any Jev systemone endpoint: openjev, the official Jev API, OpenRouter or self-hosted.">
+      <Field label="Endpoint" hint="Full URL of a Jev systemone endpoint.">
         <input className={inputClass} type="url" inputMode="url" autoComplete="off" spellCheck={false} value={endpoint} onChange={(e) => setEndpoint(e.target.value)} />
       </Field>
       <Field label="Model">

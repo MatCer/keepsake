@@ -1,7 +1,7 @@
 import { isRecord } from './capture-validation';
 import { originPattern, type ClientOptions } from './karakeep';
 
-/** Any service speaking the Jev systemone protocol: openjev, the official Jev API, OpenRouter, self-hosted. */
+/** Any service speaking the Jev systemone protocol. */
 export interface JevConfig { endpoint: string; model: string; apiKey: string }
 /** Throws on an endpoint that is not HTTPS (or local HTTP). */
 export function jevPermissions(endpoint: string) {

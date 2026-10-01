@@ -15,7 +15,7 @@ export default defineBackground(() => {
     const { bookmarkId, capture } = message as { bookmarkId: string; capture: Capture };
     (async () => {
       const s = await loadSettings();
-      if (!s.address || !s.apiKey || !s.jevApiKey) throw new Error('Karakeep or Jev is not configured');
+      if (!s.address || !s.apiKey || !s.jevApiKey || !s.jevEndpoint || !s.jevModel) throw new Error('Karakeep or Jev is not configured');
       return jevTag(new KarakeepClient(s.address, s.apiKey), bookmarkId, capture, { apiKey: s.jevApiKey, endpoint: s.jevEndpoint, model: s.jevModel });
     })().then(
       (outcome) => sendResponse({ ok: true, outcome }),

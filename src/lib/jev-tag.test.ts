@@ -5,7 +5,7 @@ import { jevTag, type JevClient } from './jev-tag';
 import type { Bookmark, List, Tag } from './karakeep';
 import type { PageCapture } from './types';
 
-const config = { apiKey: 'key', endpoint: 'https://api.openjev.sh/v1/systemone', model: 'openjev' };
+const config = { apiKey: 'key', endpoint: 'https://jev.example.com/v1/systemone', model: 'jev-model' };
 
 const capture = (): PageCapture => ({ ...video(), kind: 'page', title: 'Title', url: 'https://example.com/page#section', page: { markdown: 'Page text', description: 'Description', author: null, published: null, site: null, sha256: 'a'.repeat(64) } });
 function setup() {

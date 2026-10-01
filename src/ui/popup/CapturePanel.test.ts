@@ -14,7 +14,8 @@ vi.mock('wxt/browser', () => ({ browser: { permissions: { contains: mocks.contai
     try { return { ok: true, outcome: await mocks.tag(message) }; } catch (e) { return { ok: false, message: (e as Error).message }; }
   },
 } } }));
-const JEV_PERMISSIONS = jevPermissions(DEFAULT_SETTINGS.jevEndpoint);
+const jevEndpoint = 'https://jev.example.com/v1/systemone';
+const JEV_PERMISSIONS = jevPermissions(jevEndpoint);
 vi.mock('../run-capture', () => ({ runCapture: mocks.capture }));
 let root: Root;
 let host: HTMLDivElement;
@@ -31,7 +32,7 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); host.remove(); });
 async function render(key = 'test-jev', saved: Bookmark | null = bookmark) {
-  await act(async () => root.render(createElement(StrictMode, null, createElement(CapturePanel, { tabId: 1, tabUrl: 'https://example.com', settings: { ...DEFAULT_SETTINGS, jevApiKey: key }, client, bookmark: saved, onBookmarkChanged: changed }))));
+  await act(async () => root.render(createElement(StrictMode, null, createElement(CapturePanel, { tabId: 1, tabUrl: 'https://example.com', settings: { ...DEFAULT_SETTINGS, jevApiKey: key, jevEndpoint, jevModel: 'jev-model' }, client, bookmark: saved, onBookmarkChanged: changed }))));
 }
 test('classifies once under StrictMode and refreshes the bookmark', async () => {
   await render();
